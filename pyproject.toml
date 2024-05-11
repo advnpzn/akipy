@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "akipy"
+version = "0.1.0"
+description = "A Python library wrapper for Akinator"
+authors = ["advnpzn <adenosinetp10@protonmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+httpx = "^0.27.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
