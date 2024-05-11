@@ -5,5 +5,4 @@ akipy - A Python wrapper library for Akinator
 :license: MIT, see LICENSE for more details.
 """
 
-from .akinator import Akinator
-from .exceptions import *
+from .async_akinator import Akinator

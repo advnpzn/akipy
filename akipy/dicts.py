@@ -58,10 +58,10 @@ THEMES = {
 }
 
 ANSWERS = {
-    0: ["yes", "y", 0],
-    1: ["no", "n", 1],
-    2: ["i", "idk", "i dont know", "i don't know", 2],
-    3: ["p", "probably", 3],
-    4: ["pn", "probably not", 4],
+    0: ["yes", "y", '0'],
+    1: ["no", "n", '1'],
+    2: ["i", "idk", "i dont know", "i don't know", '2'],
+    3: ["p", "probably", '3'],
+    4: ["pn", "probably not", '4'],
 }
 
