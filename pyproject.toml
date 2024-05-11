@@ -4,10 +4,19 @@ version = "0.1.0"
 description = "A Python library wrapper for Akinator"
 authors = ["advnpzn <adenosinetp10@protonmail.com>"]
 readme = "README.md"
+repository = "https://github.com/advnpzn/akipy"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
 httpx = "^0.27.0"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/advnpzn/akipy/issues"
 
 
 [build-system]

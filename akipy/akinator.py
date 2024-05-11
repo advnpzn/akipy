@@ -89,7 +89,7 @@ class Akinator:
             "session": self.session,
             "signature": self.signature,
         }
-        print(data)
+
         try:
             req = request_handler(url=url, method='POST', data=data)
             resp = json.loads(req.text)
