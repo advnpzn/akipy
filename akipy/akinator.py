@@ -30,8 +30,9 @@ try:
 except ImportError:
     raise ImportError('httpx is not installed')
 
-from dicts import HEADERS, THEME_ID, THEMES, LANG_MAP
-from exceptions import InvalidLanguageError, CantGoBackAnyFurther
+from .dicts import HEADERS, THEME_ID, THEMES, LANG_MAP
+from .exceptions import InvalidLanguageError, CantGoBackAnyFurther
+from .utils import get_answer_id, request_handler
 
 
 class Akinator:
@@ -63,6 +64,24 @@ class Akinator:
         self.description_proposition = None
         self.completion = None
 
+    def __update(self, action: str, resp):
+        if action == "answer":
+            self.akitude = resp['akitude']
+            self.step = resp['step']
+            self.progression = resp['progression']
+            self.question = resp['question']
+        elif action == "back":
+            self.akitude = resp['akitude']
+            self.step = resp['step']
+            self.progression = resp['progression']
+            self.question = resp['question']
+        elif action == "win":
+            self.win = True
+            self.name_proposition = resp['name_proposition']
+            self.description_proposition = resp['description_proposition']
+            self.pseudo = resp['pseudo']
+            self.photo = resp['photo']
+
     def __get_region(self, lang):
         try:
             if len(lang) > 2:
@@ -73,7 +92,7 @@ class Akinator:
             raise InvalidLanguageError(lang)
         url = f"https://{lang}.akinator.com"
         try:
-            req = httpx.get(url=url, headers=HEADERS, timeout=30.0)
+            req = request_handler(url=url, method='GET')
             if req.status_code != 200:
                 raise httpx.HTTPStatusError
             else:
@@ -92,7 +111,7 @@ class Akinator:
             "cm": str(self.child_mode).lower()
         }
         try:
-            req = httpx.post(url=url, headers=HEADERS, data=data, timeout=30.0).text
+            req = request_handler(url=url, method='POST', data=data).text
             match = re.findall(r"[a-zA-Z0-9+/]+==", req)[-2:]
 
             self.session = match[0]
@@ -127,7 +146,7 @@ class Akinator:
             "progression": self.progression,
             "sid": self.theme,
             "cm": str(self.child_mode).lower(),
-            "answer": option,
+            "answer": get_answer_id(option),
             "step_last_proposition": self.step_last_proposition,
             "session": self.session,
             "signature": self.signature,
@@ -138,18 +157,9 @@ class Akinator:
             resp = json.loads(req.text)
 
             if re.findall(r"id_proposition", str(resp)):
-                self.win = True
-
-                self.name_proposition = resp['name_proposition']
-                self.description_proposition = resp['description_proposition']
-                self.pseudo = resp['pseudo']
-                self.photo = resp['photo']
+                self.__update(action="win", resp=resp)
             else:
-                self.akitude = resp['akitude']
-                self.step = resp['step']
-                self.progression = resp['progression']
-                self.question = resp['question']
-
+                self.__update(action="answer", resp=resp)
             self.completion = resp['completion']
         except Exception as e:
             raise e
@@ -169,12 +179,8 @@ class Akinator:
             }
 
             try:
-                req = httpx.post(url=url, headers=HEADERS, data=data, timeout=30.0)
+                req = request_handler(url=url, method='POST', data=data)
                 resp = json.loads(req.text)
-
-                self.akitude = resp['akitude']
-                self.step = resp['step']
-                self.progression = resp['progression']
-                self.question = resp['question']
+                self.__update(action="back", resp=resp)
             except Exception as e:
                 raise e
