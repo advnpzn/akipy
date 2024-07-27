@@ -24,11 +24,7 @@ SOFTWARE.
 """
 import json
 import re
-
-try:
-    import httpx
-except ImportError:
-    raise ImportError('httpx is not installed')
+import httpx
 
 from .dicts import HEADERS, THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther
@@ -37,8 +33,8 @@ from .utils import get_answer_id, request_handler
 
 class Akinator:
     """
-    The ``Akinator`` Class represents the Akinator Game.
-    You need to create an Instance of this Class to get started.
+    The Akinator Class represents the Akinator Game.
+    You need to create an instance of this class to get started.
     """
 
     def __init__(self):
@@ -48,7 +44,7 @@ class Akinator:
         self.theme = None
         self.session = None
         self.signature = None
-        self.child_mode: bool = False
+        self.child_mode = False
         self.lang = None
         self.available_themes = None
         self.theme = None
@@ -64,16 +60,13 @@ class Akinator:
         self.description_proposition = None
         self.completion = None
 
-    def start_game(self, language: str | None = "en", child_mode: bool = False):
+    def start_game(self, language: str = "en", child_mode: bool = False):
         """
-        This method is responsible for actually starting the game scene.
-        You can pass the following parameters to set your language preference and as well as the Child Mode.
-        If language is not set, English is used by default. Child Mode is set to ``False`` by default.
-        :param language: "en"
-        :param child_mode: False
+        Start the Akinator game with specified language and child mode.
+        :param language: Language code or name
+        :param child_mode: Whether to enable child mode
         :return: None
         """
-
         self.__get_region(lang=language)
         self.__initialise()
 
@@ -92,19 +85,19 @@ class Akinator:
 
         try:
             req = request_handler(url=url, method='POST', data=data)
-            resp = json.loads(req.text)
+            resp = req.json()
 
-            if re.findall(r"id_proposition", str(resp)):
+            if "id_proposition" in resp:
                 self.__update(action="win", resp=resp)
             else:
                 self.__update(action="answer", resp=resp)
-            self.completion = resp['completion']
+            self.completion = resp.get('completion')
         except Exception as e:
             raise e
 
     def back(self):
         if self.step == 1:
-            raise CantGoBackAnyFurther
+            raise CantGoBackAnyFurther("Cannot go back further.")
         else:
             url = f"{self.uri}/cancel_answer"
             data = {
@@ -118,48 +111,41 @@ class Akinator:
 
             try:
                 req = request_handler(url=url, method='POST', data=data)
-                resp = json.loads(req.text)
+                resp = req.json()
                 self.__update(action="back", resp=resp)
             except Exception as e:
                 raise e
 
     def __update(self, action: str, resp):
-        if action == "answer":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
-        elif action == "back":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
+        if action in ["answer", "back"]:
+            self.akitude = resp.get('akitude')
+            self.step = resp.get('step')
+            self.progression = resp.get('progression')
+            self.question = resp.get('question')
         elif action == "win":
             self.win = True
-            self.name_proposition = resp['name_proposition']
-            self.description_proposition = resp['description_proposition']
-            self.pseudo = resp['pseudo']
-            self.photo = resp['photo']
+            self.name_proposition = resp.get('name_proposition')
+            self.description_proposition = resp.get('description_proposition')
+            self.pseudo = resp.get('pseudo')
+            self.photo = resp.get('photo')
 
     def __get_region(self, lang):
         try:
-            if len(lang) > 2:
-                lang = LANG_MAP[lang]
-            else:
-                assert (lang in LANG_MAP.values())
+            lang = LANG_MAP.get(lang, lang)  # Get mapped language if available
+            if len(lang) > 2 and lang not in LANG_MAP.values():
+                raise InvalidLanguageError(lang)
         except Exception:
             raise InvalidLanguageError(lang)
+
         url = f"https://{lang}.akinator.com"
         try:
             req = request_handler(url=url, method='GET')
             if req.status_code != 200:
-                raise httpx.HTTPStatusError
-            else:
-                self.uri = url
-                self.lang = lang
-
-                self.available_themes = THEMES[lang]
-                self.theme = THEME_ID[self.available_themes[0]]
+                raise httpx.HTTPStatusError(f"HTTP status error: {req.status_code}")
+            self.uri = url
+            self.lang = lang
+            self.available_themes = THEMES.get(lang, [])
+            self.theme = THEME_ID.get(self.available_themes[0])
         except Exception as e:
             raise e
 
@@ -171,15 +157,15 @@ class Akinator:
         }
         try:
             req = request_handler(url=url, method='POST', data=data).text
-            match = re.findall(r"[a-zA-Z0-9+/]+==", req)[-2:]
+            match = re.findall(r"[a-zA-Z0-9+/]+==", req)
 
-            self.session = match[0]
-            self.signature = match[1]
+            if len(match) >= 2:
+                self.session = match[0]
+                self.signature = match[1]
 
-            match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>',
-                              req)
-            self.question = match.group(1)
+            match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>', req)
+            self.question = match.group(1) if match else None
             self.progression = "0.00000"
             self.step = 0
-        except Exception:
-            raise httpx.HTTPStatusError
+        except Exception as e:
+            raise httpx.HTTPStatusError(f"Failed to initialise: {e}")
