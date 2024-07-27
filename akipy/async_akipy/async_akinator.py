@@ -50,7 +50,7 @@ class Akinator:
         self.theme = None
         self.session = None
         self.signature = None
-        self.identifiant = None  # New attribute for identifiant
+        self.identifiant = None
         self.child_mode = False
         self.lang = None
         self.available_themes = None
@@ -157,21 +157,21 @@ class Akinator:
             "step_last_proposition": self.step_last_proposition,
             "session": self.session,
             "signature": self.signature,
-            "identifiant": self.identifiant,  # Include identifiant in the request
+            "identifiant": self.identifiant,
         }
 
         try:
             req = await async_request_handler(url=url, method='POST', data=data)
             req.raise_for_status()
             resp = req.json()
-            LOGS.info(f"API Response: {resp}")  # Log the full API response
+            LOGS.info(f"API Response: {resp}")
 
             if "id_proposition" in resp:
                 await self.__update(action="win", resp=resp)
             else:
                 await self.__update(action="answer", resp=resp)
 
-            LOGS.info(f"Updated question: {self.question}")  # Log the updated question
+            LOGS.info(f"Updated question: {self.question}")
             self.completion = resp.get('completion')
         except httpx.HTTPStatusError as e:
             raise httpx.HTTPStatusError(f"HTTP error occurred: {e}") from e
@@ -190,7 +190,7 @@ class Akinator:
                 "cm": str(self.child_mode).lower(),
                 "session": self.session,
                 "signature": self.signature,
-                "identifiant": self.identifiant,  # Include identifiant in the back request
+                "identifiant": self.identifiant,
             }
 
             try:
