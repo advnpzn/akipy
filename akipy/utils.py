@@ -20,8 +20,8 @@ async def async_request_handler(url: str, method: str, data: Optional[dict] = No
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
-def get_answer_id(ans: Union[str, int]) -> Optional[int]:
+def get_answer_id(ans):
     for key, values in ANSWERS.items():
-        if ans in values:
+        if ans.lower() in values:
             return key
     return None
