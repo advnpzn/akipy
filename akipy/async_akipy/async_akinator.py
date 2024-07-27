@@ -35,7 +35,6 @@ from ..dicts import HEADERS, THEME_ID, THEMES, LANG_MAP
 from ..exceptions import InvalidLanguageError, CantGoBackAnyFurther
 from ..utils import get_answer_id, async_request_handler
 
-
 class Akinator:
     """
     The ``Akinator`` Class represents the Akinator Game.
@@ -49,10 +48,9 @@ class Akinator:
         self.theme = None
         self.session = None
         self.signature = None
-        self.child_mode: bool = False
+        self.child_mode = False
         self.lang = None
         self.available_themes = None
-        self.theme = None
 
         self.question = None
         self.progression = None
@@ -67,43 +65,43 @@ class Akinator:
 
     async def __update(self, action: str, resp):
         if action == "answer":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
+            self.akitude = resp.get('akitude')
+            self.step = resp.get('step')
+            self.progression = resp.get('progression')
+            self.question = resp.get('question')
         elif action == "back":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
+            self.akitude = resp.get('akitude')
+            self.step = resp.get('step')
+            self.progression = resp.get('progression')
+            self.question = resp.get('question')
         elif action == "win":
             self.win = True
-            self.name_proposition = resp['name_proposition']
-            self.description_proposition = resp['description_proposition']
-            self.pseudo = resp['pseudo']
-            self.photo = resp['photo']
+            self.name_proposition = resp.get('name_proposition')
+            self.description_proposition = resp.get('description_proposition')
+            self.pseudo = resp.get('pseudo')
+            self.photo = resp.get('photo')
 
     async def __get_region(self, lang):
         try:
             if len(lang) > 2:
-                lang = LANG_MAP[lang]
+                lang = LANG_MAP.get(lang)
             else:
-                assert (lang in LANG_MAP.values())
-        except Exception:
-            raise InvalidLanguageError(lang)
+                assert lang in LANG_MAP.values(), "Invalid language code"
+        except AssertionError as e:
+            raise InvalidLanguageError(lang) from e
         url = f"https://{lang}.akinator.com"
         try:
             req = await async_request_handler(url=url, method='GET')
-            if req.status_code != 200:
-                raise httpx.HTTPStatusError
-            else:
-                self.uri = url
-                self.lang = lang
+            req.raise_for_status()
+            self.uri = url
+            self.lang = lang
 
-                self.available_themes = THEMES[lang]
-                self.theme = THEME_ID[self.available_themes[0]]
+            self.available_themes = THEMES.get(lang)
+            self.theme = THEME_ID.get(self.available_themes[0])
+        except httpx.HTTPStatusError as e:
+            raise httpx.HTTPStatusError(f"HTTP error occurred: {e}") from e
         except Exception as e:
-            raise e
+            raise Exception(f"An error occurred while getting region: {e}") from e
 
     async def __initialise(self):
         url = f"{self.uri}/game"
@@ -113,20 +111,23 @@ class Akinator:
         }
         try:
             req = await async_request_handler(url=url, method='POST', data=data)
+            req.raise_for_status()
             match = re.findall(r"[a-zA-Z0-9+/]+==", req.text)[-2:]
 
             self.session = match[0]
             self.signature = match[1]
 
-            match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>',
-                              req.text)
-            self.question = match.group(1)
+            match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>', req.text)
+            if match:
+                self.question = match.group(1)
             self.progression = "0.00000"
             self.step = 0
-        except Exception:
-            raise httpx.HTTPStatusError
+        except httpx.HTTPStatusError as e:
+            raise httpx.HTTPStatusError(f"HTTP error occurred: {e}") from e
+        except Exception as e:
+            raise Exception(f"An error occurred while initializing: {e}") from e
 
-    async def start_game(self, language: str | None = "en", child_mode: bool = False):
+    async def start_game(self, language: str = "en", child_mode: bool = False):
         """
         This method is responsible for actually starting the game scene.
         You can pass the following parameters to set your language preference and as well as the Child Mode.
@@ -135,9 +136,7 @@ class Akinator:
         :param child_mode: False
         :return: None
         """
-
         await self.__get_region(lang=language)
-
         await self.__initialise()
 
     async def answer(self, option):
@@ -155,15 +154,18 @@ class Akinator:
 
         try:
             req = await async_request_handler(url=url, method='POST', data=data)
-            resp = json.loads(req.text)
+            req.raise_for_status()
+            resp = req.json()
 
-            if re.findall(r"id_proposition", str(resp)):
+            if "id_proposition" in resp:
                 await self.__update(action="win", resp=resp)
             else:
                 await self.__update(action="answer", resp=resp)
-            self.completion = resp['completion']
+            self.completion = resp.get('completion')
+        except httpx.HTTPStatusError as e:
+            raise httpx.HTTPStatusError(f"HTTP error occurred: {e}") from e
         except Exception as e:
-            raise e
+            raise Exception(f"An error occurred while answering: {e}") from e
 
     async def back(self):
         if self.step == 1:
@@ -181,7 +183,10 @@ class Akinator:
 
             try:
                 req = await async_request_handler(url=url, method='POST', data=data)
-                resp = json.loads(req.text)
+                req.raise_for_status()
+                resp = req.json()
                 await self.__update(action="back", resp=resp)
+            except httpx.HTTPStatusError as e:
+                raise httpx.HTTPStatusError(f"HTTP error occurred: {e}") from e
             except Exception as e:
-                raise e
+                raise Exception(f"An error occurred while going back: {e}") from e
