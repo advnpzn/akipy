@@ -12,7 +12,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.9.5"
 httpx = "^0.25.0"
 
 [tool.poetry.urls]
