@@ -50,6 +50,7 @@ class Akinator:
         self.theme = None
         self.session = None
         self.signature = None
+        self.identifiant = None  # New attribute for identifiant
         self.child_mode = False
         self.lang = None
         self.available_themes = None
@@ -119,6 +120,10 @@ class Akinator:
             self.session = match[0]
             self.signature = match[1]
 
+            # Extract identifiant
+            identifiant_match = re.search(r'\$\(\'#identifiant\'\)\.val\([\'"](.*?)[\'"]\);', req.text)
+            self.identifiant = identifiant_match.group(1) if identifiant_match else None
+
             match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>', req.text)
             if match:
                 self.question = match.group(1)
@@ -152,6 +157,7 @@ class Akinator:
             "step_last_proposition": self.step_last_proposition,
             "session": self.session,
             "signature": self.signature,
+            "identifiant": self.identifiant,  # Include identifiant in the request
         }
 
         try:
@@ -184,6 +190,7 @@ class Akinator:
                 "cm": str(self.child_mode).lower(),
                 "session": self.session,
                 "signature": self.signature,
+                "identifiant": self.identifiant,  # Include identifiant in the back request
             }
 
             try:
