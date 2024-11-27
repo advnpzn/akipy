@@ -115,8 +115,8 @@ class Akinator:
             req = await async_request_handler(url=url, method='POST', data=data)
 
             
-            self.session = re.search(r"val\('(\d+)'\)", req).group(1)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
+            self.session = re.search(r"val\('(\d+)'\)", req.text).group(1)
+            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req.text).group(1)
 
             match = re.search(r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>',
                               req.text)
