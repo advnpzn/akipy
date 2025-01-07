@@ -67,6 +67,7 @@ class Akinator(SyncAkinator):
             ).group(1)
             self.progression = "0.00000"
             self.step = "0"
+            self.akitude = 'defi.png'
         except Exception:
             raise httpx.HTTPStatusError
 

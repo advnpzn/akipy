@@ -93,6 +93,7 @@ class Akinator:
             ).group(1)
             self.progression = "0.00000"
             self.step = "0"
+            self.akitude = 'defi.png'
         except Exception:
             raise httpx.HTTPStatusError
 
@@ -289,7 +290,8 @@ class Akinator:
 
     def defeat(self):
         # The Akinator website normally displays the defeat screen directly using HTML; we replicate here what the user would see
-        self.win = True
+        self.finished = True
+        self.win = False
         self.akitude = 'deception.png'
         self.id_proposition = ""
         # TODO: Get the correct defeat message in the user's language
@@ -303,7 +305,7 @@ class Akinator:
 
     @property
     def akitude_url(self):
-        return f"{self.uri}/img/akitudes_670x1096/{self.akitude}"
+        return f"{self.uri}/assets/img/akitudes_670x1096/{self.akitude}"
 
     def yes(self):
         return self.answer("yes")
