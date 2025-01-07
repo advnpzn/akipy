@@ -200,12 +200,14 @@ class Akinator(SyncAkinator):
         self.win = True
         self.akitude = 'triomphe.png'
         self.id_proposition = ""
-        self.question = "Great, guessed right one more time!"
         try:
             text = resp.text
-            # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played
+            # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
+            win_message = re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
+            already_played = re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            self.question += f"\nCharacter Already Played {times_selected} Times"
+            times = re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1)
+            self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
         self.progression = '100.00000'
