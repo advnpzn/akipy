@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 """
+import html
 import re
 
 try:
@@ -31,7 +32,7 @@ except ImportError:
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
-from .utils import get_answer_id, request_handler, html_decode
+from .utils import get_answer_id, request_handler
 
 
 class Akinator:
@@ -86,8 +87,8 @@ class Akinator:
                 r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
                 req,
             )
-            self.question = html_decode(match.group(1))
-            self.proposition_message = html_decode(re.search(
+            self.question = html.unescape(match.group(1))
+            self.proposition_message = html.unescape(re.search(
                 r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
                 req,
             ).group(1))
@@ -278,10 +279,10 @@ class Akinator:
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html_decode(re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1))
-            already_played = html_decode(re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1))
+            win_message = html.unescape(re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1))
+            already_played = html.unescape(re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1))
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html_decode(re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1))
+            times = html.unescape(re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1))
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
