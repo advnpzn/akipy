@@ -31,51 +31,26 @@ except ImportError:
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
-from .utils import get_answer_id, request_handler, html_decode
+from .utils import get_answer_id, async_request_handler, html_decode
+from .akinator import Akinator as SyncAkinator
 
 
-class Akinator:
+class Akinator(SyncAkinator):
     """
     The ``Akinator`` Class represents the Akinator Game.
+    This is the Asynchronous version, requiring `await` for requests.
     You need to create an Instance of this Class to get started.
     """
 
-    def __init__(self):
-        self.flag_photo = None
-        self.photo = None
-        self.pseudo = None
-        self.uri = None
-        self.theme = None
-        self.session = None
-        self.signature = None
-        self.identifiant = None
-        self.child_mode: bool = False
-        self.lang = None
-        self.available_themes = None
-        self.theme = None
-
-        self.question = None
-        self.progression = None
-        self.step = None
-        self.akitude = None
-        self.step_last_proposition = ""
-        self.finished = False
-
-        self.win = False
-        self.id_proposition = None
-        self.name_proposition = None
-        self.description_proposition = None
-        self.completion = None
-
-    def __initialise(self):
+    async def __initialise(self):
         url = f"{self.uri}/game"
         data = {
             "sid": self.theme,
             "cm": str(self.child_mode).lower()
         }
-        self.client = httpx.Client()
+        self.client = httpx.AsyncClient()
         try:
-            req = request_handler(url=url, method='POST', data=data, client=self.client).text
+            req = (await async_request_handler(url=url, method="POST", data=data, client=self.client)).text
             
             self.session = re.search(r"#session'\).val\('(.+?)'\)", req).group(1)
             self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
@@ -91,26 +66,7 @@ class Akinator:
         except Exception:
             raise httpx.HTTPStatusError
 
-    def __update(self, action: str, resp: dict):
-        if action == "answer":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
-        elif action == "win":
-            self.win = True
-            self.id_proposition = resp['id_proposition']
-            self.name_proposition = resp['name_proposition']
-            self.description_proposition = resp['description_proposition']
-            # This is necessary to prevent Akinator from immediately proposing a new character after an exclusion
-            self.step_last_proposition = self.step
-            self.pseudo = resp['pseudo']
-            self.flag_photo = resp['flag_photo']
-            self.photo = resp['photo']
-        else:
-            raise NotImplementedError(f"Unable to handle action: {action}")
-
-    def __get_region(self, lang):
+    async def __get_region(self, lang):
         try:
             if len(lang) > 2:
                 lang = LANG_MAP[lang]
@@ -120,7 +76,7 @@ class Akinator:
             raise InvalidLanguageError(lang)
         url = f"https://{lang}.akinator.com"
         try:
-            req = request_handler(url=url, method='GET')
+            req = await async_request_handler(url=url, method='GET')
             if req.status_code != 200:
                 raise httpx.HTTPStatusError
             else:
@@ -132,7 +88,7 @@ class Akinator:
         except Exception as e:
             raise e
 
-    def start_game(self, language: str | None = "en", child_mode: bool = False):
+    async def start_game(self, language: str | None = "en", child_mode: bool = False):
         """
         This method is responsible for actually starting the game scene.
         You can pass the following parameters to set your language preference and as well as the Child Mode.
@@ -142,43 +98,18 @@ class Akinator:
         :return: The first question asked by the Akinator.
         """
 
-        self.__get_region(lang=language)
-        self.__initialise()
+        await self.__get_region(language)
+        await self.__initialise()
         return self
 
-    def handle_response(self, resp: httpx.Response):
-        resp.raise_for_status()
-        try:
-            data = resp.json()
-        except Exception:
-            text = resp.text
-            if "A technical problem has occurred." in text:
-                raise RuntimeError("A technical problem has occurred.")
-            raise RuntimeError(f"Unexpected response: {text}")
-        if 'completion' not in data:
-            # Assume the completion key is missing because a step has been undone or skipped
-            data['completion'] = self.completion
-        if data['completion'] == "KO - TIMEOUT":
-            raise TimeoutError("The session has timed out.")
-        if data['completion'] == "SOUNDLIKE":
-            self.finished = True
-            self.win = True
-            if not self.id_proposition:
-                self.defeat()
-        elif "id_proposition" in data:
-            self.__update(action="win", resp=data)
-        else:
-            self.__update(action="answer", resp=data)
-        self.completion = data['completion']
-
-    def answer(self, option: str | int):
+    async def answer(self, option: str | int):
         if self.win:
             # In proposition mode, we are only supposed to call the /choice or /exclude endpoints. We allow this function to be called with 'yes' or 'no' for convenience, as the website typically displays buttons for these options
             answer = get_answer_id(option)
             if answer == 0:
-                return self.choose()
+                return await self.choose()
             if answer == 1:
-                return self.exclude()
+                return await self.exclude()
             raise InvalidChoiceError("Only 'yes' or 'no' can be answered when Akinator has proposed a win")
         url = f"{self.uri}/answer"
         data = {
@@ -193,13 +124,13 @@ class Akinator:
         }
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
             self.handle_response(resp)
         except Exception as e:
             raise e
         return self
 
-    def back(self):
+    async def back(self):
         if self.step == 1:
             raise CantGoBackAnyFurther("You are already at the first question")
         url = f"{self.uri}/cancel_answer"
@@ -214,13 +145,13 @@ class Akinator:
         self.win = False
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
             self.handle_response(resp)
         except Exception as e:
             raise e
         return self
 
-    def exclude(self):
+    async def exclude(self):
         if not self.win:
             raise InvalidChoiceError("You can only exclude when Akinator has proposed a win")
         if self.finished:
@@ -237,13 +168,13 @@ class Akinator:
         self.win = False
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
             self.handle_response(resp)
         except Exception as e:
             raise e
         return self
 
-    def choose(self):
+    async def choose(self):
         if not self.win:
             raise InvalidChoiceError("You can only choose when Akinator has proposed a win")
         url = f"{self.uri}/choice"
@@ -260,7 +191,7 @@ class Akinator:
         }
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client, follow_redirects=True)
+            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client, follow_redirects=True)
             if resp.status_code not in range(200, 400):
                 resp.raise_for_status()
         except Exception as e:
@@ -279,30 +210,3 @@ class Akinator:
             pass
         self.progression = '100.00000'
         return self
-
-    def defeat(self):
-        # The Akinator website normally displays the defeat screen directly using HTML; we replicate here what the user would see
-        self.win = True
-        self.akitude = 'deception.png'
-        self.id_proposition = ""
-        self.question = "Bravo, you have defeated me!\nShare your feat with your friends"
-        self.progression = '100.00000'
-        return self
-
-    @property
-    def confidence(self):
-        return float(self.progression) / 100
-
-    def yes(self):
-        return self.answer("yes")
-
-    def no(self):
-        return self.answer("no")
-
-    def __str__(self):
-        if self.win and not self.finished:
-            return f"I think of {self.name_proposition} ({self.description_proposition})"
-        return self.question
-
-    def __repr__(self):
-        return f"<Akinator: {str(self)}>"

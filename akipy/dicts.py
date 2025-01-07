@@ -64,4 +64,4 @@ ANSWERS = {
     3: ["p", "probably", '3'],
     4: ["pn", "probably not", '4'],
 }
-
+ANSWER_MAP = {a: key for key, values in ANSWERS.items() for a in values}
