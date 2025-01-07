@@ -87,10 +87,10 @@ class Akinator:
                 req,
             )
             self.question = html_decode(match.group(1))
-            self.proposition_message = re.search(
+            self.proposition_message = html_decode(re.search(
                 r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
                 req,
-            ).group(1)
+            ).group(1))
             self.progression = "0.00000"
             self.step = "0"
             self.akitude = 'defi.png'
@@ -278,10 +278,10 @@ class Akinator:
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
-            already_played = re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
+            win_message = html_decode(re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1))
+            already_played = html_decode(re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1))
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1)
+            times = html_decode(re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1))
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
