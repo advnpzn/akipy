@@ -57,12 +57,16 @@ class Akinator(SyncAkinator):
             self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(1)
 
             match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>',
+                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
                 req,
             )
             self.question = html_decode(match.group(1))
+            self.proposition_message = re.search(
+                r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
+                req,
+            ).group(1)
             self.progression = "0.00000"
-            self.step = 0
+            self.step = "0"
         except Exception:
             raise httpx.HTTPStatusError
 

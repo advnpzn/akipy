@@ -65,6 +65,7 @@ class Akinator:
         self.id_proposition = None
         self.name_proposition = None
         self.description_proposition = None
+        self.proposition_message = ""
         self.completion = None
 
     def __initialise(self):
@@ -82,12 +83,16 @@ class Akinator:
             self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(1)
 
             match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.*?)</p></div>',
+                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
                 req,
             )
             self.question = html_decode(match.group(1))
+            self.proposition_message = re.search(
+                r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
+                req,
+            ).group(1)
             self.progression = "0.00000"
-            self.step = 0
+            self.step = "0"
         except Exception:
             raise httpx.HTTPStatusError
 
@@ -296,6 +301,10 @@ class Akinator:
     def confidence(self):
         return float(self.progression) / 100
 
+    @property
+    def akitude_url(self):
+        return f"{self.uri}/img/akitudes_670x1096/{self.akitude}"
+
     def yes(self):
         return self.answer("yes")
 
@@ -304,7 +313,7 @@ class Akinator:
 
     def __str__(self):
         if self.win and not self.finished:
-            return f"I think of {self.name_proposition} ({self.description_proposition})"
+            return f"{self.proposition_message} {self.name_proposition} ({self.description_proposition})"
         return self.question
 
     def __repr__(self):
