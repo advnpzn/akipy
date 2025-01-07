@@ -269,12 +269,12 @@ class Akinator:
         self.win = True
         self.akitude = 'triomphe.png'
         self.id_proposition = ""
-        self.question = "Great, guessed right one more time!"
         try:
             text = resp.text
-            # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played
+            # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
+            win_message = re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            self.question += f"\nCharacter Already Played {times_selected} Times"
+            self.question = f"{win_message}\nCharacter Already Played {times_selected} Times"
         except Exception:
             pass
         self.progression = '100.00000'
@@ -285,7 +285,8 @@ class Akinator:
         self.win = True
         self.akitude = 'deception.png'
         self.id_proposition = ""
-        self.question = "Bravo, you have defeated me!\nShare your feat with your friends"
+        # TODO: Get the correct defeat message in the user's language
+        self.question = "Bravo, you have defeated me !\nShare your feat with your friends"
         self.progression = '100.00000'
         return self
 
