@@ -11,7 +11,10 @@ while not aki.finished:
         except akipy.CantGoBackAnyFurther:
             pass
     else:
-        aki.answer(ans)
+        try:
+            aki.answer(ans)
+        except akipy.InvalidChoiceError:
+            pass
 
 print(aki)
 print(aki.name_proposition)

@@ -17,7 +17,10 @@ async def main():
             except akipy.CantGoBackAnyFurther:
                 pass
         else:
-            await aki.answer(ans)
+            try:
+                await aki.answer(ans)
+            except akipy.InvalidChoiceError:
+                pass
 
 asyncio.run(main())
 

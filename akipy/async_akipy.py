@@ -172,6 +172,7 @@ class Akinator(SyncAkinator):
             "signature": self.signature,
         }
         self.win = False
+        self.id_proposition = ""
 
         try:
             resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)

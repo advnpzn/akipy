@@ -242,6 +242,7 @@ class Akinator:
             "signature": self.signature,
         }
         self.win = False
+        self.id_proposition = ""
 
         try:
             resp = request_handler(url=url, method='POST', data=data, client=self.client)
