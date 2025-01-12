@@ -4,5 +4,10 @@ class InvalidLanguageError(ValueError):
 
 
 class CantGoBackAnyFurther(Exception):
-    """Raises when the user is in the first question and tries to go back further"""
+    """Raise when the user is in the first question and tries to go back further"""
+    pass
+
+
+class InvalidChoiceError(ValueError):
+    """Raise when the user input is not a valid answer for the current question"""
     pass

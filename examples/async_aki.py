@@ -7,16 +7,25 @@ aki = Akinator()
 
 
 async def main():
-    q = await aki.start_game()
+    await aki.start_game()
 
-    while not aki.win:
-        ans = input(aki.question + "\n\t")
+    while not aki.finished:
+        ans = input(str(aki) + "\n\t")
         if ans == "b":
             try:
                 await aki.back()
             except akipy.CantGoBackAnyFurther:
                 pass
         else:
-            await aki.answer(ans)
+            try:
+                await aki.answer(ans)
+            except akipy.InvalidChoiceError:
+                pass
 
 asyncio.run(main())
+
+print(aki)
+print(aki.name_proposition)
+print(aki.description_proposition)
+print(aki.pseudo)
+print(aki.photo)

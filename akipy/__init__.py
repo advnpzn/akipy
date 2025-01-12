@@ -6,4 +6,5 @@ akipy - A Python wrapper library for Akinator
 """
 
 from .akinator import Akinator
+from . import async_akipy
 from .exceptions import *
