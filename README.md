@@ -1,18 +1,17 @@
-# akipy [WIP]
+# akipy
 Python library wrapper for [akinator.com](https://akinator.com)
+You can use this in your python projects to integrate Akinator functionalities.
 
 Wrapper is still in development.
-Some things are not present or partially present.
+Some things may or may not work. If you experience issues, feel free to raise an issue here.
 
-Such as,
+Some things that could be improved:
 * Exception Handling
 * Docs
 * Better error Handling
 * Custom Exceptions
-* Support for Choice and Exclusion, once Akinator makes a proposal
 
-These are the things I'll be working on trying to improve. If you want to help,
-the above is the main priority for now.
+If you want to help, the above is the main priority for now.
 
 # Why ?
 I already used to use a wrapper library for Akinator ([akinator.py](https://github.com/Ombucha/akinator.py)) before.
