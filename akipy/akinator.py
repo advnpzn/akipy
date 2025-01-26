@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 """
+# Akinator API wrapper for interacting with the Akinator game.
+# This module provides a class `Akinator` that allows users to play the Akinator game programmatically.
 import html
 import re
 
@@ -37,11 +39,39 @@ from .utils import get_answer_id, request_handler
 
 class Akinator:
     """
-    The ``Akinator`` Class represents the Akinator Game.
-    You need to create an Instance of this Class to get started.
+    The ``Akinator`` class represents the Akinator game.
+    You need to create an instance of this class to get started.
+
+    Attributes:
+        flag_photo (str): Flag photo URL.
+        photo (str): Character photo URL.
+        pseudo (str): Pseudo name.
+        uri (str): Base URI for API requests.
+        theme (str): Theme ID.
+        session (str): Session ID.
+        signature (str): Signature for API requests.
+        identifiant (str): Identifiant for API requests.
+        child_mode (bool): Whether child mode is enabled.
+        lang (str): Language code.
+        available_themes (list): List of available themes.
+        question (str): Current question.
+        progression (str): Progression percentage.
+        step (str): Current step.
+        akitude (str): Akitude image name.
+        step_last_proposition (str): Last step proposition.
+        finished (bool): Whether the game is finished.
+        win (bool): Whether the game is won.
+        id_proposition (str): ID of the proposed character.
+        name_proposition (str): Name of the proposed character.
+        description_proposition (str): Description of the proposed character.
+        proposition_message (str): Proposition message.
+        completion (str): Completion status.
     """
 
     def __init__(self):
+        """
+        Initializes a new instance of the Akinator class.
+        """
         self.flag_photo = None
         self.photo = None
         self.pseudo = None
@@ -70,6 +100,13 @@ class Akinator:
         self.completion = None
 
     def __initialise(self):
+        """
+        Initializes the Akinator game session by making an API request to get the initial question and session data.
+
+        Raises:
+            httpx.HTTPStatusError: If the request to the Akinator server fails.
+            ValueError: If the response does not contain expected data.
+        """
         url = f"{self.uri}/game"
         data = {
             "sid": self.theme,
@@ -77,28 +114,64 @@ class Akinator:
         }
         self.client = httpx.Client()
         try:
-            req = request_handler(url=url, method='POST', data=data, client=self.client).text
-            
-            self.session = re.search(r"#session'\).val\('(.+?)'\)", req).group(1)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(1)
+            req = request_handler(url=url, method='POST', data=data, client=self.client)
+            req.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
+            text = req.text
 
-            match = re.search(
+            # Extract session, signature, and identifiant using regular expressions
+            self.session = re.search(r"#session'\).val\('(.+?)'\)", text)
+            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", text)
+            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", text)
+
+            if not self.session or not self.signature or not self.identifiant:
+                raise ValueError("Response does not contain expected data: session, signature, or identifiant")
+
+            self.session = self.session.group(1)
+            self.signature = self.signature.group(1)
+            self.identifiant = self.identifiant.group(1)
+
+            # Extract the initial question
+            question_match = re.search(
                 r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
-                req,
+                text,
             )
-            self.question = html.unescape(match.group(1))
-            self.proposition_message = html.unescape(re.search(
+            if not question_match:
+                raise ValueError("Response does not contain expected data: question")
+
+            self.question = html.unescape(question_match.group(1))
+
+            # Extract the proposition message
+            proposition_match = re.search(
                 r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                req,
-            ).group(1))
+                text,
+            )
+            if not proposition_match:
+                raise ValueError("Response does not contain expected data: proposition message")
+
+            self.proposition_message = html.unescape(proposition_match.group(1))
+
+            # Initialize other attributes
             self.progression = "0.00000"
             self.step = "0"
             self.akitude = 'defi.png'
-        except Exception:
-            raise httpx.HTTPStatusError
+        except httpx.HTTPError as e:
+            raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
+        except ValueError as e:
+            raise ValueError(f"Invalid response data: {e}")
+        except Exception as e:
+            raise RuntimeError(f"An unexpected error occurred: {e}")
 
     def __update(self, action: str, resp: dict):
+        """
+        Updates the game state based on the response from the API.
+
+        Parameters:
+            action (str): The type of action to update ('answer' or 'win').
+            resp (dict): The response dictionary from the API.
+
+        Raises:
+            NotImplementedError: If the action is not recognized.
+        """
         if action == "answer":
             self.akitude = resp['akitude']
             self.step = resp['step']
@@ -118,24 +191,42 @@ class Akinator:
             raise NotImplementedError(f"Unable to handle action: {action}")
 
     def __get_region(self, lang):
+        """
+        Determines the region and theme for the Akinator game based on the provided language.
+
+        Parameters:
+            lang (str): The language code or full name of the language.
+
+        Raises:
+            InvalidLanguageError: If the provided language is not valid.
+            HTTPStatusError: If the request to the Akinator server fails.
+        """
         try:
+            # Map the language code to the full name if necessary
             if len(lang) > 2:
-                lang = LANG_MAP[lang]
+                lang = LANG_MAP.get(lang, lang)
             else:
-                assert (lang in LANG_MAP.values())
-        except Exception:
-            raise InvalidLanguageError(lang)
+                # Ensure the provided language is valid
+                assert lang in LANG_MAP.values(), f"Invalid language: {lang}"
+        except AssertionError as e:
+            raise InvalidLanguageError(lang) from e
+
+        # Construct the URL for the Akinator server
         url = f"https://{lang}.akinator.com"
+
         try:
+            # Make a GET request to the Akinator server
             req = request_handler(url=url, method='GET')
+            # Check if the request was successful
             if req.status_code != 200:
-                raise httpx.HTTPStatusError
+                raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {req.status_code}")
             else:
+                # Update the instance variables with the response data
                 self.uri = url
                 self.lang = lang
 
-                self.available_themes = THEMES[lang]
-                self.theme = THEME_ID[self.available_themes[0]]
+                self.available_themes = THEMES.get(lang, [])
+                self.theme = THEME_ID.get(self.available_themes[0], None)
         except Exception as e:
             raise e
 

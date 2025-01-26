@@ -3,7 +3,7 @@ requires-python = ">=3.12, <4.0"
 
 [[package]]
 name = "akipy"
-version = "0.2.0"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
