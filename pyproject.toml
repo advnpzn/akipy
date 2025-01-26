@@ -1,24 +1,30 @@
-[tool.poetry]
+[tool.pdm.build]
+includes = []
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[project]
+authors = [
+    {name = "advnpzn", email = "adenosinetp10@protonmail.com"},
+]
+requires-python = "<4.0,>=3.12"
+dependencies = [
+    "httpx>=0.28.1,<1.0.0",
+    "ruff>=0.9.3",
+]
 name = "akipy"
-version = "0.2.0"
+version = "0.2.1"
 description = "A Python library wrapper for Akinator"
-authors = ["advnpzn <adenosinetp10@protonmail.com>"]
 readme = "README.md"
-repository = "https://github.com/advnpzn/akipy"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-httpx = "^0.28.1"
-
-[tool.poetry.urls]
+[project.urls]
 "Bug Tracker" = "https://github.com/advnpzn/akipy/issues"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+repository = "https://github.com/advnpzn/akipy"
