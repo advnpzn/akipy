@@ -4,7 +4,13 @@ from .dicts import ANSWER_MAP, HEADERS
 from .exceptions import InvalidChoiceError
 
 
-def request_handler(url: str, method: str, data: dict | None = None, client: httpx.Client | None = None, **kwargs) -> httpx.Response:
+def request_handler(
+    url: str,
+    method: str,
+    data: dict | None = None,
+    client: httpx.Client | None = None,
+    **kwargs,
+) -> httpx.Response:
     """
     Sends an HTTP request to the specified URL using the provided method and data.
 
@@ -32,7 +38,13 @@ def request_handler(url: str, method: str, data: dict | None = None, client: htt
         raise httpx.HTTPError(f"Request failed: {e}")
 
 
-async def async_request_handler(url: str, method: str, data: dict | None = None, client: httpx.AsyncClient | None = None, **kwargs) -> httpx.Response:
+async def async_request_handler(
+    url: str,
+    method: str,
+    data: dict | None = None,
+    client: httpx.AsyncClient | None = None,
+    **kwargs,
+) -> httpx.Response:
     """
     Sends an asynchronous HTTP request to the specified URL using the provided method and data.
 
@@ -53,7 +65,9 @@ async def async_request_handler(url: str, method: str, data: dict | None = None,
     if data:
         kwargs["data"] = data
     try:
-        response = await client.request(method, url, headers=HEADERS, timeout=30, **kwargs)
+        response = await client.request(
+            method, url, headers=HEADERS, timeout=30, **kwargs
+        )
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
         return response
     except httpx.HTTPError as e:

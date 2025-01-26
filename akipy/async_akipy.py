@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 """
+
 import html
 import re
 
@@ -45,30 +46,35 @@ class Akinator(SyncAkinator):
 
     async def __initialise(self):
         url = f"{self.uri}/game"
-        data = {
-            "sid": self.theme,
-            "cm": str(self.child_mode).lower()
-        }
+        data = {"sid": self.theme, "cm": str(self.child_mode).lower()}
         self.client = httpx.AsyncClient()
         try:
-            req = (await async_request_handler(url=url, method="POST", data=data, client=self.client)).text
-            
+            req = (
+                await async_request_handler(
+                    url=url, method="POST", data=data, client=self.client
+                )
+            ).text
+
             self.session = re.search(r"#session'\).val\('(.+?)'\)", req).group(1)
             self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(1)
+            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(
+                1
+            )
 
             match = re.search(
                 r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
                 req,
             )
             self.question = html.unescape(match.group(1))
-            self.proposition_message = html.unescape(re.search(
-                r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                req,
-            ).group(1))
+            self.proposition_message = html.unescape(
+                re.search(
+                    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
+                    req,
+                ).group(1)
+            )
             self.progression = "0.00000"
             self.step = "0"
-            self.akitude = 'defi.png'
+            self.akitude = "defi.png"
         except Exception:
             raise httpx.HTTPStatusError
 
@@ -77,12 +83,12 @@ class Akinator(SyncAkinator):
             if len(lang) > 2:
                 lang = LANG_MAP[lang]
             else:
-                assert (lang in LANG_MAP.values())
+                assert lang in LANG_MAP.values()
         except Exception:
             raise InvalidLanguageError(lang)
         url = f"https://{lang}.akinator.com"
         try:
-            req = await async_request_handler(url=url, method='GET')
+            req = await async_request_handler(url=url, method="GET")
             if req.status_code != 200:
                 raise httpx.HTTPStatusError
             else:
@@ -116,7 +122,9 @@ class Akinator(SyncAkinator):
                 return await self.choose()
             if answer == 1:
                 return await self.exclude()
-            raise InvalidChoiceError("Only 'yes' or 'no' can be answered when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "Only 'yes' or 'no' can be answered when Akinator has proposed a win"
+            )
         url = f"{self.uri}/answer"
         data = {
             "step": self.step,
@@ -130,7 +138,9 @@ class Akinator(SyncAkinator):
         }
 
         try:
-            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -151,7 +161,9 @@ class Akinator(SyncAkinator):
         self.win = False
 
         try:
-            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -159,7 +171,9 @@ class Akinator(SyncAkinator):
 
     async def exclude(self):
         if not self.win:
-            raise InvalidChoiceError("You can only exclude when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "You can only exclude when Akinator has proposed a win"
+            )
         if self.finished:
             return self.defeat()
         url = f"{self.uri}/exclude"
@@ -175,7 +189,9 @@ class Akinator(SyncAkinator):
         self.id_proposition = ""
 
         try:
-            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -183,7 +199,9 @@ class Akinator(SyncAkinator):
 
     async def choose(self):
         if not self.win:
-            raise InvalidChoiceError("You can only choose when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "You can only choose when Akinator has proposed a win"
+            )
         url = f"{self.uri}/choice"
         data = {
             "step": self.step,
@@ -198,24 +216,38 @@ class Akinator(SyncAkinator):
         }
 
         try:
-            resp = await async_request_handler(url=url, method='POST', data=data, client=self.client, follow_redirects=True)
+            resp = await async_request_handler(
+                url=url,
+                method="POST",
+                data=data,
+                client=self.client,
+                follow_redirects=True,
+            )
             if resp.status_code not in range(200, 400):
                 resp.raise_for_status()
         except Exception as e:
             raise e
         self.finished = True
         self.win = True
-        self.akitude = 'triomphe.png'
+        self.akitude = "triomphe.png"
         self.id_proposition = ""
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1))
-            already_played = html.unescape(re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1))
+            win_message = html.unescape(
+                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
+            )
+            already_played = html.unescape(
+                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
+            )
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1))
+            times = html.unescape(
+                re.search(
+                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
+                ).group(1)
+            )
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
-        self.progression = '100.00000'
+        self.progression = "100.00000"
         return self

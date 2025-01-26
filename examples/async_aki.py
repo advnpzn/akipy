@@ -22,6 +22,7 @@ async def main():
             except akipy.InvalidChoiceError:
                 pass
 
+
 asyncio.run(main())
 
 print(aki)

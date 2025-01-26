@@ -3,7 +3,7 @@ HEADERS = {
     "Accept-Encoding": "gzip, deflate",
     "Accept-Language": "en-US,en;q=0.9",
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) snap Chromium/81.0.4044.92 "
-                  "Chrome/81.0.4044.92 Safari/537.36",
+    "Chrome/81.0.4044.92 Safari/537.36",
     "x-requested-with": "XMLHttpRequest",
 }
 
@@ -23,14 +23,10 @@ LANG_MAP = {
     "portuguese": "pt",
     "russian": "ru",
     "turkish": "tr",
-    "indonesian": "id"
+    "indonesian": "id",
 }
 
-THEME_ID = {
-    "c": 1,
-    "a": 14,
-    "o": 2
-}
+THEME_ID = {"c": 1, "a": 14, "o": 2}
 
 """
 c - characters
@@ -58,10 +54,10 @@ THEMES = {
 }
 
 ANSWERS = {
-    0: ["yes", "y", '0'],
-    1: ["no", "n", '1'],
-    2: ["i", "idk", "i dont know", "i don't know", '2'],
-    3: ["p", "probably", '3'],
-    4: ["pn", "probably not", '4'],
+    0: ["yes", "y", "0"],
+    1: ["no", "n", "1"],
+    2: ["i", "idk", "i dont know", "i don't know", "2"],
+    3: ["p", "probably", "3"],
+    4: ["pn", "probably not", "4"],
 }
 ANSWER_MAP = {a: key for key, values in ANSWERS.items() for a in values}

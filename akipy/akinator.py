@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 """
+
 # Akinator API wrapper for interacting with the Akinator game.
 # This module provides a class `Akinator` that allows users to play the Akinator game programmatically.
 import html
@@ -108,13 +109,10 @@ class Akinator:
             ValueError: If the response does not contain expected data.
         """
         url = f"{self.uri}/game"
-        data = {
-            "sid": self.theme,
-            "cm": str(self.child_mode).lower()
-        }
+        data = {"sid": self.theme, "cm": str(self.child_mode).lower()}
         self.client = httpx.Client()
         try:
-            req = request_handler(url=url, method='POST', data=data, client=self.client)
+            req = request_handler(url=url, method="POST", data=data, client=self.client)
             req.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
             text = req.text
 
@@ -124,7 +122,9 @@ class Akinator:
             self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", text)
 
             if not self.session or not self.signature or not self.identifiant:
-                raise ValueError("Response does not contain expected data: session, signature, or identifiant")
+                raise ValueError(
+                    "Response does not contain expected data: session, signature, or identifiant"
+                )
 
             self.session = self.session.group(1)
             self.signature = self.signature.group(1)
@@ -146,14 +146,16 @@ class Akinator:
                 text,
             )
             if not proposition_match:
-                raise ValueError("Response does not contain expected data: proposition message")
+                raise ValueError(
+                    "Response does not contain expected data: proposition message"
+                )
 
             self.proposition_message = html.unescape(proposition_match.group(1))
 
             # Initialize other attributes
             self.progression = "0.00000"
             self.step = "0"
-            self.akitude = 'defi.png'
+            self.akitude = "defi.png"
         except httpx.HTTPError as e:
             raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
         except ValueError as e:
@@ -173,20 +175,20 @@ class Akinator:
             NotImplementedError: If the action is not recognized.
         """
         if action == "answer":
-            self.akitude = resp['akitude']
-            self.step = resp['step']
-            self.progression = resp['progression']
-            self.question = resp['question']
+            self.akitude = resp["akitude"]
+            self.step = resp["step"]
+            self.progression = resp["progression"]
+            self.question = resp["question"]
         elif action == "win":
             self.win = True
-            self.id_proposition = resp['id_proposition']
-            self.name_proposition = resp['name_proposition']
-            self.description_proposition = resp['description_proposition']
+            self.id_proposition = resp["id_proposition"]
+            self.name_proposition = resp["name_proposition"]
+            self.description_proposition = resp["description_proposition"]
             # This is necessary to prevent Akinator from immediately proposing a new character after an exclusion
             self.step_last_proposition = self.step
-            self.pseudo = resp['pseudo']
-            self.flag_photo = resp['flag_photo']
-            self.photo = resp['photo']
+            self.pseudo = resp["pseudo"]
+            self.flag_photo = resp["flag_photo"]
+            self.photo = resp["photo"]
         else:
             raise NotImplementedError(f"Unable to handle action: {action}")
 
@@ -216,10 +218,12 @@ class Akinator:
 
         try:
             # Make a GET request to the Akinator server
-            req = request_handler(url=url, method='GET')
+            req = request_handler(url=url, method="GET")
             # Check if the request was successful
             if req.status_code != 200:
-                raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {req.status_code}")
+                raise httpx.HTTPStatusError(
+                    f"Failed to connect to Akinator server: {req.status_code}"
+                )
             else:
                 # Update the instance variables with the response data
                 self.uri = url
@@ -253,12 +257,12 @@ class Akinator:
             if "A technical problem has occurred." in text:
                 raise RuntimeError("A technical problem has occurred.")
             raise RuntimeError(f"Unexpected response: {text}")
-        if 'completion' not in data:
+        if "completion" not in data:
             # Assume the completion key is missing because a step has been undone or skipped
-            data['completion'] = self.completion
-        if data['completion'] == "KO - TIMEOUT":
+            data["completion"] = self.completion
+        if data["completion"] == "KO - TIMEOUT":
             raise TimeoutError("The session has timed out.")
-        if data['completion'] == "SOUNDLIKE":
+        if data["completion"] == "SOUNDLIKE":
             self.finished = True
             self.win = True
             if not self.id_proposition:
@@ -267,7 +271,7 @@ class Akinator:
             self.__update(action="win", resp=data)
         else:
             self.__update(action="answer", resp=data)
-        self.completion = data['completion']
+        self.completion = data["completion"]
 
     def answer(self, option: str | int):
         if self.win:
@@ -277,7 +281,9 @@ class Akinator:
                 return self.choose()
             if answer == 1:
                 return self.exclude()
-            raise InvalidChoiceError("Only 'yes' or 'no' can be answered when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "Only 'yes' or 'no' can be answered when Akinator has proposed a win"
+            )
         url = f"{self.uri}/answer"
         data = {
             "step": self.step,
@@ -291,7 +297,9 @@ class Akinator:
         }
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -312,7 +320,9 @@ class Akinator:
         self.win = False
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -320,7 +330,9 @@ class Akinator:
 
     def exclude(self):
         if not self.win:
-            raise InvalidChoiceError("You can only exclude when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "You can only exclude when Akinator has proposed a win"
+            )
         if self.finished:
             return self.defeat()
         url = f"{self.uri}/exclude"
@@ -336,7 +348,9 @@ class Akinator:
         self.id_proposition = ""
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client)
+            resp = request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
             self.handle_response(resp)
         except Exception as e:
             raise e
@@ -344,7 +358,9 @@ class Akinator:
 
     def choose(self):
         if not self.win:
-            raise InvalidChoiceError("You can only choose when Akinator has proposed a win")
+            raise InvalidChoiceError(
+                "You can only choose when Akinator has proposed a win"
+            )
         url = f"{self.uri}/choice"
         data = {
             "step": self.step,
@@ -359,37 +375,53 @@ class Akinator:
         }
 
         try:
-            resp = request_handler(url=url, method='POST', data=data, client=self.client, follow_redirects=True)
+            resp = request_handler(
+                url=url,
+                method="POST",
+                data=data,
+                client=self.client,
+                follow_redirects=True,
+            )
             if resp.status_code not in range(200, 400):
                 resp.raise_for_status()
         except Exception as e:
             raise e
         self.finished = True
         self.win = True
-        self.akitude = 'triomphe.png'
+        self.akitude = "triomphe.png"
         self.id_proposition = ""
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1))
-            already_played = html.unescape(re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1))
+            win_message = html.unescape(
+                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
+            )
+            already_played = html.unescape(
+                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
+            )
             times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(re.search(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text).group(1))
+            times = html.unescape(
+                re.search(
+                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
+                ).group(1)
+            )
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
-        self.progression = '100.00000'
+        self.progression = "100.00000"
         return self
 
     def defeat(self):
         # The Akinator website normally displays the defeat screen directly using HTML; we replicate here what the user would see
         self.finished = True
         self.win = False
-        self.akitude = 'deception.png'
+        self.akitude = "deception.png"
         self.id_proposition = ""
         # TODO: Get the correct defeat message in the user's language
-        self.question = "Bravo, you have defeated me !\nShare your feat with your friends"
-        self.progression = '100.00000'
+        self.question = (
+            "Bravo, you have defeated me !\nShare your feat with your friends"
+        )
+        self.progression = "100.00000"
         return self
 
     @property
