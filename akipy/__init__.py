@@ -5,6 +5,18 @@ akipy - A Python wrapper library for Akinator
 :license: MIT, see LICENSE for more details.
 """
 
-from .akinator import Akinator
-from . import async_akipy
-from .exceptions import *
+from .akinator import Akinator as Akinator
+from . import async_akipy as async_akipy
+from .exceptions import (
+    InvalidLanguageError,
+    CantGoBackAnyFurther,
+    InvalidChoiceError,
+)
+
+__all__ = [
+    "Akinator",
+    "async_akipy",
+    "InvalidLanguageError",
+    "CantGoBackAnyFurther",
+    "InvalidChoiceError",
+]

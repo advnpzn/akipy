@@ -24,7 +24,6 @@ SOFTWARE.
 """
 
 import html
-import re
 
 try:
     import httpx
@@ -34,7 +33,18 @@ except ImportError:
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
 from .utils import get_answer_id, async_request_handler
-from .akinator import Akinator as SyncAkinator
+from .akinator import (
+    Akinator as SyncAkinator,
+    SESSION_REGEX,
+    SIGNATURE_REGEX,
+    IDENTIFIANT_REGEX,
+    QUESTION_REGEX,
+    PROPOSITION_REGEX,
+    WIN_MESSAGE_REGEX,
+    ALREADY_PLAYED_REGEX,
+    TIMES_SELECTED_REGEX,
+    TIMES_REGEX,
+)
 
 
 class Akinator(SyncAkinator):
@@ -44,59 +54,141 @@ class Akinator(SyncAkinator):
     You need to create an Instance of this Class to get started.
     """
 
+    def __del__(self):
+        """
+        Cleanup resources when the object is destroyed.
+        """
+        import asyncio
+
+        # Only attempt async cleanup if we have an event loop running
+        try:
+            loop = asyncio.get_running_loop()
+            if loop and not loop.is_closed():
+                loop.create_task(self.aclose())
+        except RuntimeError:
+            # No event loop running, fall back to sync cleanup
+            if hasattr(self, "client") and self.client is not None:
+                # We can't properly close an async client from sync context
+                # but we can at least clear the reference
+                self.client = None
+
+    async def aclose(self):
+        """
+        Close the async HTTP client if it exists.
+        """
+        if hasattr(self, "client") and self.client is not None:
+            await self.client.aclose()
+            self.client = None
+
+    async def __aenter__(self):
+        """
+        Async context manager entry.
+        """
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """
+        Async context manager exit.
+        """
+        await self.aclose()
+
     async def __initialise(self):
         url = f"{self.uri}/game"
         data = {"sid": self.theme, "cm": str(self.child_mode).lower()}
         self.client = httpx.AsyncClient()
         try:
-            req = (
-                await async_request_handler(
-                    url=url, method="POST", data=data, client=self.client
+            req = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
+            text = req.text
+
+            # Extract session, signature, and identifiant using pre-compiled regular expressions
+            session_match = SESSION_REGEX.search(text)
+            signature_match = SIGNATURE_REGEX.search(text)
+            identifiant_match = IDENTIFIANT_REGEX.search(text)
+
+            if not session_match or not signature_match or not identifiant_match:
+                raise ValueError(
+                    "Response does not contain expected data: session, signature, or identifiant"
                 )
-            ).text
 
-            self.session = re.search(r"#session'\).val\('(.+?)'\)", req).group(1)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(
-                1
-            )
+            self.session = session_match.group(1)
+            self.signature = signature_match.group(1)
+            self.identifiant = identifiant_match.group(1)
 
-            match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
-                req,
-            )
-            self.question = html.unescape(match.group(1))
-            self.proposition_message = html.unescape(
-                re.search(
-                    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                    req,
-                ).group(1)
-            )
+            # Extract the initial question
+            question_match = QUESTION_REGEX.search(text)
+            if not question_match:
+                raise ValueError("Response does not contain expected data: question")
+
+            self.question = html.unescape(question_match.group(1))
+
+            # Extract the proposition message
+            proposition_match = PROPOSITION_REGEX.search(text)
+            if not proposition_match:
+                raise ValueError(
+                    "Response does not contain expected data: proposition message"
+                )
+
+            self.proposition_message = html.unescape(proposition_match.group(1))
+
+            # Initialize other attributes
             self.progression = "0.00000"
             self.step = "0"
             self.akitude = "defi.png"
-        except Exception:
-            raise httpx.HTTPStatusError
+        except httpx.HTTPStatusError as e:
+            raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
+        except httpx.RequestError as e:
+            raise httpx.RequestError(f"Request failed: {e}")
+        except ValueError as e:
+            raise ValueError(f"Invalid response data: {e}")
+        except Exception as e:
+            raise RuntimeError(f"An unexpected error occurred: {e}")
 
     async def __get_region(self, lang):
+        """
+        Determines the region and theme for the Akinator game based on the provided language.
+
+        Parameters:
+            lang (str): The language code or full name of the language.
+
+        Raises:
+            InvalidLanguageError: If the provided language is not valid.
+            HTTPStatusError: If the request to the Akinator server fails.
+        """
         try:
+            # Map the language code to the full name if necessary
             if len(lang) > 2:
-                lang = LANG_MAP[lang]
+                lang = LANG_MAP.get(lang, lang)
             else:
-                assert lang in LANG_MAP.values()
-        except Exception:
-            raise InvalidLanguageError(lang)
+                # Ensure the provided language is valid
+                assert lang in LANG_MAP.values(), f"Invalid language: {lang}"
+        except AssertionError as e:
+            raise InvalidLanguageError(lang) from e
+
+        # Construct the URL for the Akinator server
         url = f"https://{lang}.akinator.com"
+
         try:
+            # Make a GET request to the Akinator server
             req = await async_request_handler(url=url, method="GET")
+            # Check if the request was successful
             if req.status_code != 200:
-                raise httpx.HTTPStatusError
+                raise httpx.HTTPStatusError(
+                    f"Failed to connect to Akinator server: {req.status_code}"
+                )
             else:
+                # Update the instance variables with the response data
                 self.uri = url
                 self.lang = lang
 
-                self.available_themes = THEMES[lang]
-                self.theme = THEME_ID[self.available_themes[0]]
+                self.available_themes = THEMES.get(lang, [])
+                if self.available_themes:
+                    self.theme = THEME_ID.get(self.available_themes[0], None)
+                else:
+                    raise InvalidLanguageError(
+                        f"No themes available for language: {lang}"
+                    )
         except Exception as e:
             raise e
 
@@ -234,19 +326,24 @@ class Akinator(SyncAkinator):
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(
-                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
-            )
-            already_played = html.unescape(
-                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
-            )
-            times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(
-                re.search(
-                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
-                ).group(1)
-            )
-            self.question = f"{win_message}\n{already_played} {times_selected} {times}"
+            win_message_match = WIN_MESSAGE_REGEX.search(text)
+            already_played_match = ALREADY_PLAYED_REGEX.search(text)
+            times_selected_match = TIMES_SELECTED_REGEX.search(text)
+            times_match = TIMES_REGEX.search(text)
+
+            if (
+                win_message_match
+                and already_played_match
+                and times_selected_match
+                and times_match
+            ):
+                win_message = html.unescape(win_message_match.group(1))
+                already_played = html.unescape(already_played_match.group(1))
+                times_selected = times_selected_match.group(1)
+                times = html.unescape(times_match.group(1))
+                self.question = (
+                    f"{win_message}\n{already_played} {times_selected} {times}"
+                )
         except Exception:
             pass
         self.progression = "100.00000"

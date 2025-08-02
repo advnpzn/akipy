@@ -37,6 +37,21 @@ from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
 from .utils import get_answer_id, request_handler
 
+# Pre-compiled regular expressions for better performance
+SESSION_REGEX = re.compile(r"#session'\).val\('(.+?)'\)")
+SIGNATURE_REGEX = re.compile(r"#signature'\).val\('(.+?)'\)")
+IDENTIFIANT_REGEX = re.compile(r"#identifiant'\).val\('(.+?)'\)")
+QUESTION_REGEX = re.compile(
+    r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>'
+)
+PROPOSITION_REGEX = re.compile(
+    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>'
+)
+WIN_MESSAGE_REGEX = re.compile(r'<span class="win-sentence">(.+?)</span>')
+ALREADY_PLAYED_REGEX = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
+TIMES_SELECTED_REGEX = re.compile(r'let timesSelected = "(\d+)";')
+TIMES_REGEX = re.compile(r'<span id="timesselected"></span>\s+([\w\s]+)</span>')
+
 
 class Akinator:
     """
@@ -85,6 +100,7 @@ class Akinator:
         self.lang = None
         self.available_themes = None
         self.theme = None
+        self.client = None
 
         self.question = None
         self.progression = None
@@ -100,6 +116,20 @@ class Akinator:
         self.proposition_message = ""
         self.completion = None
 
+    def __del__(self):
+        """
+        Cleanup resources when the object is destroyed.
+        """
+        self.close()
+
+    def close(self):
+        """
+        Close the HTTP client if it exists.
+        """
+        if hasattr(self, "client") and self.client is not None:
+            self.client.close()
+            self.client = None
+
     def __initialise(self):
         """
         Initializes the Akinator game session by making an API request to get the initial question and session data.
@@ -113,38 +143,31 @@ class Akinator:
         self.client = httpx.Client()
         try:
             req = request_handler(url=url, method="POST", data=data, client=self.client)
-            req.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
             text = req.text
 
-            # Extract session, signature, and identifiant using regular expressions
-            self.session = re.search(r"#session'\).val\('(.+?)'\)", text)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", text)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", text)
+            # Extract session, signature, and identifiant using pre-compiled regular expressions
+            session_match = SESSION_REGEX.search(text)
+            signature_match = SIGNATURE_REGEX.search(text)
+            identifiant_match = IDENTIFIANT_REGEX.search(text)
 
-            if not self.session or not self.signature or not self.identifiant:
+            if not session_match or not signature_match or not identifiant_match:
                 raise ValueError(
                     "Response does not contain expected data: session, signature, or identifiant"
                 )
 
-            self.session = self.session.group(1)
-            self.signature = self.signature.group(1)
-            self.identifiant = self.identifiant.group(1)
+            self.session = session_match.group(1)
+            self.signature = signature_match.group(1)
+            self.identifiant = identifiant_match.group(1)
 
             # Extract the initial question
-            question_match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
-                text,
-            )
+            question_match = QUESTION_REGEX.search(text)
             if not question_match:
                 raise ValueError("Response does not contain expected data: question")
 
             self.question = html.unescape(question_match.group(1))
 
             # Extract the proposition message
-            proposition_match = re.search(
-                r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                text,
-            )
+            proposition_match = PROPOSITION_REGEX.search(text)
             if not proposition_match:
                 raise ValueError(
                     "Response does not contain expected data: proposition message"
@@ -156,8 +179,10 @@ class Akinator:
             self.progression = "0.00000"
             self.step = "0"
             self.akitude = "defi.png"
-        except httpx.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
+        except httpx.RequestError as e:
+            raise httpx.RequestError(f"Request failed: {e}")
         except ValueError as e:
             raise ValueError(f"Invalid response data: {e}")
         except Exception as e:
@@ -230,7 +255,12 @@ class Akinator:
                 self.lang = lang
 
                 self.available_themes = THEMES.get(lang, [])
-                self.theme = THEME_ID.get(self.available_themes[0], None)
+                if self.available_themes:
+                    self.theme = THEME_ID.get(self.available_themes[0], None)
+                else:
+                    raise InvalidLanguageError(
+                        f"No themes available for language: {lang}"
+                    )
         except Exception as e:
             raise e
 
@@ -393,19 +423,24 @@ class Akinator:
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(
-                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
-            )
-            already_played = html.unescape(
-                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
-            )
-            times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(
-                re.search(
-                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
-                ).group(1)
-            )
-            self.question = f"{win_message}\n{already_played} {times_selected} {times}"
+            win_message_match = WIN_MESSAGE_REGEX.search(text)
+            already_played_match = ALREADY_PLAYED_REGEX.search(text)
+            times_selected_match = TIMES_SELECTED_REGEX.search(text)
+            times_match = TIMES_REGEX.search(text)
+
+            if (
+                win_message_match
+                and already_played_match
+                and times_selected_match
+                and times_match
+            ):
+                win_message = html.unescape(win_message_match.group(1))
+                already_played = html.unescape(already_played_match.group(1))
+                times_selected = times_selected_match.group(1)
+                times = html.unescape(times_match.group(1))
+                self.question = (
+                    f"{win_message}\n{already_played} {times_selected} {times}"
+                )
         except Exception:
             pass
         self.progression = "100.00000"

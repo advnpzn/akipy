@@ -27,15 +27,22 @@ def request_handler(
     Raises:
         httpx.HTTPError: If the request fails.
     """
-    client = client or httpx.Client()
     if data:
         kwargs["data"] = data
-    try:
+
+    if client is not None:
+        # Use existing client
         response = client.request(method, url, headers=HEADERS, timeout=30, **kwargs)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
+        response.raise_for_status()
         return response
-    except httpx.HTTPError as e:
-        raise httpx.HTTPError(f"Request failed: {e}")
+    else:
+        # Create new client with context manager for proper cleanup
+        with httpx.Client() as temp_client:
+            response = temp_client.request(
+                method, url, headers=HEADERS, timeout=30, **kwargs
+            )
+            response.raise_for_status()
+            return response
 
 
 async def async_request_handler(
@@ -61,17 +68,24 @@ async def async_request_handler(
     Raises:
         httpx.HTTPError: If the request fails.
     """
-    client = client or httpx.AsyncClient()
     if data:
         kwargs["data"] = data
-    try:
+
+    if client is not None:
+        # Use existing client
         response = await client.request(
             method, url, headers=HEADERS, timeout=30, **kwargs
         )
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
+        response.raise_for_status()
         return response
-    except httpx.HTTPError as e:
-        raise httpx.HTTPError(f"Request failed: {e}")
+    else:
+        # Create new client with context manager for proper cleanup
+        async with httpx.AsyncClient() as temp_client:
+            response = await temp_client.request(
+                method, url, headers=HEADERS, timeout=30, **kwargs
+            )
+            response.raise_for_status()
+            return response
 
 
 def get_answer_id(ans: str | int) -> int:
