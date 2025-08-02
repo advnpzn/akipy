@@ -76,9 +76,13 @@ class Akinator(SyncAkinator):
         """
         Close the async HTTP client if it exists.
         """
-        if hasattr(self, "client") and self.client is not None:
+        if (
+            hasattr(self, "client")
+            and self.client is not None
+            and hasattr(self.client, "aclose")
+        ):
             await self.client.aclose()
-            self.client = None
+        self.client = None
 
     async def __aenter__(self):
         """
@@ -159,12 +163,16 @@ class Akinator(SyncAkinator):
         try:
             # Map the language code to the full name if necessary
             if len(lang) > 2:
-                lang = LANG_MAP.get(lang, lang)
+                # For language names, check if they exist in LANG_MAP
+                if lang not in LANG_MAP:
+                    raise InvalidLanguageError(f"Invalid language name: {lang}")
+                lang = LANG_MAP[lang]
             else:
-                # Ensure the provided language is valid
-                assert lang in LANG_MAP.values(), f"Invalid language: {lang}"
-        except AssertionError as e:
-            raise InvalidLanguageError(lang) from e
+                # For language codes, ensure they are valid
+                if lang not in LANG_MAP.values():
+                    raise InvalidLanguageError(f"Invalid language code: {lang}")
+        except InvalidLanguageError:
+            raise
 
         # Construct the URL for the Akinator server
         url = f"https://{lang}.akinator.com"
