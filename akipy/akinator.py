@@ -265,13 +265,40 @@ class Akinator:
 
     def handle_response(self, resp: httpx.Response):
         resp.raise_for_status()
+
+        # Check if response is HTML instead of JSON
+        content_type = resp.headers.get("content-type", "").lower()
+        if "text/html" in content_type:
+            text = resp.text
+            # The API sometimes returns HTML error pages with 200 status
+            if "<!DOCTYPE html>" in text or "<html" in text:
+                raise RuntimeError(
+                    f"Server returned HTML instead of JSON. This typically means the session has expired "
+                    f"or there was a server error. Response preview: {text[:500]}"
+                )
+
         try:
             data = resp.json()
-        except Exception:
+        except Exception as e:
             text = resp.text
             if "A technical problem has occurred." in text:
-                raise RuntimeError("A technical problem has occurred.")
-            raise RuntimeError(f"Unexpected response: {text}")
+                raise RuntimeError(
+                    f"A technical problem has occurred. Response: {text[:500]}"
+                )
+            raise RuntimeError(
+                f"Failed to parse JSON response. Error: {e}. Response (first 500 chars): {text[:500]}"
+            )
+
+        # Handle empty array response from /exclude endpoint when no more characters are available
+        if isinstance(data, list) and len(data) == 0:
+            raise RuntimeError("No more characters available to propose")
+
+        # Ensure we have a dict to work with
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                f"Unexpected response type: {type(data).__name__}. Response: {data}"
+            )
+
         if "completion" not in data:
             # Assume the completion key is missing because a step has been undone or skipped
             data["completion"] = self.completion
@@ -348,12 +375,32 @@ class Akinator:
             "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
+            "forward_answer": "0",
         }
         self.win = False
         self.id_proposition = ""
 
-        resp = request_handler(url=url, method="POST", data=data, client=self.client)
-        self.handle_response(resp)
+        try:
+            resp = request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
+            self.handle_response(resp)
+        except RuntimeError as e:
+            # If the exclude endpoint fails (returns HTML, empty array, or errors),
+            # it likely means we've reached the end of the game with no more characters
+            # In this case, treat it as a defeat
+            error_msg = str(e)
+            if any(
+                msg in error_msg
+                for msg in [
+                    "HTML instead of JSON",
+                    "Failed to parse JSON",
+                    "No more characters available",
+                ]
+            ):
+                return self.defeat()
+            # Re-raise other errors
+            raise
         return self
 
     def choose(self):

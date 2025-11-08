@@ -186,14 +186,32 @@ class Akinator(SyncAkinator):
             "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
+            "forward_answer": "0",
         }
         self.win = False
         self.id_proposition = ""
 
-        resp = await async_request_handler(
-            url=url, method="POST", data=data, client=self.client
-        )
-        self.handle_response(resp)
+        try:
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
+            self.handle_response(resp)
+        except RuntimeError as e:
+            # If the exclude endpoint fails (returns HTML, empty array, or errors),
+            # it likely means we've reached the end of the game with no more characters
+            # In this case, treat it as a defeat
+            error_msg = str(e)
+            if any(
+                msg in error_msg
+                for msg in [
+                    "HTML instead of JSON",
+                    "Failed to parse JSON",
+                    "No more characters available",
+                ]
+            ):
+                return self.defeat()
+            # Re-raise other errors
+            raise
         return self
 
     async def choose(self):
