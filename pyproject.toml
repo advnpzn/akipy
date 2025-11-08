@@ -12,7 +12,11 @@ authors = [
 ]
 requires-python = "<4.0,>=3.12"
 dependencies = [
+    "aiohttp>=3.13.2",
     "httpx>=0.28.1,<1.0.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-mock>=3.15.1",
     "ruff>=0.9.3",
 ]
 name = "akipy"
@@ -28,3 +32,12 @@ classifiers = [
 [project.urls]
 "Bug Tracker" = "https://github.com/advnpzn/akipy/issues"
 repository = "https://github.com/advnpzn/akipy"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-httpx>=0.35.0",
+    "pytest-mock>=3.15.1",
+]
