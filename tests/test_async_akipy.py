@@ -1,11 +1,9 @@
 """Tests for the asynchronous Akinator class"""
+
 import pytest
 import httpx
 from akipy.async_akipy import Akinator as AsyncAkinator
-from akipy.exceptions import (
-    CantGoBackAnyFurther,
-    InvalidChoiceError
-)
+from akipy.exceptions import CantGoBackAnyFurther, InvalidChoiceError
 
 
 class TestAsyncAkinatorInitialization:
@@ -19,6 +17,7 @@ class TestAsyncAkinatorInitialization:
     def test_async_akinator_inherits_from_sync(self):
         """Test that async Akinator inherits from sync version"""
         from akipy.akinator import Akinator as SyncAkinator
+
         aki = AsyncAkinator()
         assert isinstance(aki, SyncAkinator)
 
@@ -37,19 +36,23 @@ class TestAsyncAkinatorStartGame:
     """Tests for async start_game method"""
 
     @pytest.mark.asyncio
-    async def test_start_game_with_default_language(self, mocker, mock_game_initialization_response):
+    async def test_start_game_with_default_language(
+        self, mocker, mock_game_initialization_response
+    ):
         """Test starting game with default English language"""
         aki = AsyncAkinator()
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.start_game()
-        
+
         assert result == aki
         assert aki.lang == "en"
         assert aki.uri == "https://en.akinator.com"
@@ -62,63 +65,75 @@ class TestAsyncAkinatorStartGame:
         assert aki.step == "0"
 
     @pytest.mark.asyncio
-    async def test_start_game_with_specific_language(self, mocker, mock_game_initialization_response):
+    async def test_start_game_with_specific_language(
+        self, mocker, mock_game_initialization_response
+    ):
         """Test starting game with a specific language"""
         aki = AsyncAkinator()
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         await aki.start_game(language="french")
-        
+
         assert aki.lang == "fr"
         assert aki.uri == "https://fr.akinator.com"
 
     @pytest.mark.asyncio
-    async def test_start_game_with_language_code(self, mocker, mock_game_initialization_response):
+    async def test_start_game_with_language_code(
+        self, mocker, mock_game_initialization_response
+    ):
         """Test starting game with language code"""
         aki = AsyncAkinator()
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         await aki.start_game(language="es")
-        
+
         assert aki.lang == "es"
         assert aki.uri == "https://es.akinator.com"
 
     @pytest.mark.asyncio
-    async def test_start_game_with_child_mode(self, mocker, mock_game_initialization_response):
+    async def test_start_game_with_child_mode(
+        self, mocker, mock_game_initialization_response
+    ):
         """Test starting game with child mode enabled"""
         aki = AsyncAkinator()
-        
+
         # Need to set child_mode BEFORE calling start_game
         aki.child_mode = True
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
-        
+
         # Mock the request handler
-        mock_request = mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+        mock_request = mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         await aki.start_game(child_mode=True)
-        
-        # Check that child mode was set on the object  
+
+        # Check that child mode was set on the object
         assert aki.child_mode is True
         # Verify that request was made with child_mode=true
         # The second call is to /game with cm parameter
         call_args = mock_request.call_args_list[1]
-        assert call_args[1]['data']['cm'] == 'true'
+        assert call_args[1]["data"]["cm"] == "true"
 
 
 class TestAsyncAkinatorAnswer:
@@ -139,16 +154,18 @@ class TestAsyncAkinatorAnswer:
         aki.win = False
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.answer("yes")
-        
+
         assert result == aki
         assert aki.question == "Is your character from a movie?"
         assert aki.step == "1"
@@ -169,16 +186,18 @@ class TestAsyncAkinatorAnswer:
         aki.win = False
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.answer("no")
-        
+
         assert result == aki
 
     @pytest.mark.asyncio
@@ -196,16 +215,18 @@ class TestAsyncAkinatorAnswer:
         aki.win = False
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.answer(2)  # I don't know
-        
+
         assert result == aki
 
     @pytest.mark.asyncio
@@ -215,14 +236,14 @@ class TestAsyncAkinatorAnswer:
         aki.win = True
         aki.id_proposition = "12345"
         aki.name_proposition = "Mario"
-        
+
         async def mock_choose():
             return aki
-        
-        mocker.patch.object(aki, 'choose', side_effect=mock_choose)
-        
+
+        mocker.patch.object(aki, "choose", side_effect=mock_choose)
+
         result = await aki.answer("yes")
-        
+
         assert result == aki
 
     @pytest.mark.asyncio
@@ -231,14 +252,14 @@ class TestAsyncAkinatorAnswer:
         aki = AsyncAkinator()
         aki.win = True
         aki.id_proposition = "12345"
-        
+
         async def mock_exclude():
             return aki
-        
-        mocker.patch.object(aki, 'exclude', side_effect=mock_exclude)
-        
+
+        mocker.patch.object(aki, "exclude", side_effect=mock_exclude)
+
         result = await aki.answer("no")
-        
+
         assert result == aki
 
     @pytest.mark.asyncio
@@ -246,7 +267,7 @@ class TestAsyncAkinatorAnswer:
         """Test answering with invalid choice when in win state"""
         aki = AsyncAkinator()
         aki.win = True
-        
+
         with pytest.raises(InvalidChoiceError, match="Only 'yes' or 'no'"):
             await aki.answer("probably")
 
@@ -255,7 +276,9 @@ class TestAsyncAkinatorBack:
     """Tests for async back method"""
 
     @pytest.mark.asyncio
-    async def test_back_goes_to_previous_question(self, mocker, mock_answer_response_json):
+    async def test_back_goes_to_previous_question(
+        self, mocker, mock_answer_response_json
+    ):
         """Test going back to previous question"""
         aki = AsyncAkinator()
         aki.uri = "https://en.akinator.com"
@@ -267,16 +290,18 @@ class TestAsyncAkinatorBack:
         aki.child_mode = False
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.back()
-        
+
         assert result == aki
         assert aki.win is False
 
@@ -285,7 +310,7 @@ class TestAsyncAkinatorBack:
         """Test that going back at first question raises error"""
         aki = AsyncAkinator()
         aki.step = 1
-        
+
         with pytest.raises(CantGoBackAnyFurther, match="first question"):
             await aki.back()
 
@@ -303,16 +328,18 @@ class TestAsyncAkinatorBack:
         aki.win = True
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         await aki.back()
-        
+
         assert aki.win is False
 
 
@@ -324,7 +351,7 @@ class TestAsyncAkinatorExclude:
         """Test that exclude when not in win state raises error"""
         aki = AsyncAkinator()
         aki.win = False
-        
+
         with pytest.raises(InvalidChoiceError, match="only exclude when"):
             await aki.exclude()
 
@@ -344,16 +371,18 @@ class TestAsyncAkinatorExclude:
         aki.finished = False
         aki.completion = "OK"  # Set initial completion
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json = mocker.Mock(return_value=mock_answer_response_json)
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.exclude()
-        
+
         assert result == aki
         assert aki.win is False
         assert aki.id_proposition == ""
@@ -364,11 +393,11 @@ class TestAsyncAkinatorExclude:
         aki = AsyncAkinator()
         aki.win = True
         aki.finished = True
-        
-        mock_defeat = mocker.patch.object(aki, 'defeat', return_value=aki)
-        
+
+        mock_defeat = mocker.patch.object(aki, "defeat", return_value=aki)
+
         await aki.exclude()
-        
+
         mock_defeat.assert_called_once()
 
 
@@ -380,7 +409,7 @@ class TestAsyncAkinatorChoose:
         """Test that choose when not in win state raises error"""
         aki = AsyncAkinator()
         aki.win = False
-        
+
         with pytest.raises(InvalidChoiceError, match="only choose when"):
             await aki.choose()
 
@@ -400,16 +429,18 @@ class TestAsyncAkinatorChoose:
         aki.description_proposition = "Italian plumber"
         aki.flag_photo = "https://example.com/flag.jpg"
         aki.client = mocker.Mock(spec=httpx.AsyncClient)
-        
+
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_choice_response
         mock_response.raise_for_status = mocker.Mock()
-        
-        mocker.patch('akipy.async_akipy.async_request_handler', return_value=mock_response)
-        
+
+        mocker.patch(
+            "akipy.async_akipy.async_request_handler", return_value=mock_response
+        )
+
         result = await aki.choose()
-        
+
         assert result == aki
         assert aki.finished is True
         assert aki.win is True
@@ -423,9 +454,9 @@ class TestAsyncAkinatorInheritance:
     def test_async_uses_sync_defeat(self):
         """Test that async version uses sync defeat method"""
         aki = AsyncAkinator()
-        
+
         result = aki.defeat()
-        
+
         assert result == aki
         assert aki.finished is True
         assert aki.win is False
@@ -434,7 +465,7 @@ class TestAsyncAkinatorInheritance:
         """Test that async version has confidence property"""
         aki = AsyncAkinator()
         aki.progression = "75.5"
-        
+
         assert aki.confidence == 0.755
 
     def test_async_has_akitude_url_property(self):
@@ -442,7 +473,7 @@ class TestAsyncAkinatorInheritance:
         aki = AsyncAkinator()
         aki.uri = "https://en.akinator.com"
         aki.akitude = "concentre.png"
-        
+
         expected = "https://en.akinator.com/assets/img/akitudes_670x1096/concentre.png"
         assert aki.akitude_url == expected
 
@@ -450,6 +481,6 @@ class TestAsyncAkinatorInheritance:
         """Test async version string representation"""
         aki = AsyncAkinator()
         aki.question = "Is your character real?"
-        
+
         assert str(aki) == "Is your character real?"
         assert "Akinator" in repr(aki)

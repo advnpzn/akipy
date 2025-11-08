@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures"""
+
 import pytest
 from unittest.mock import Mock
 import httpx
@@ -7,12 +8,8 @@ import httpx
 @pytest.fixture
 def mock_httpx_response():
     """Create a mock httpx Response object"""
-    def _create_response(
-        status_code=200,
-        text="",
-        json_data=None,
-        headers=None
-    ):
+
+    def _create_response(status_code=200, text="", json_data=None, headers=None):
         response = Mock(spec=httpx.Response)
         response.status_code = status_code
         response.text = text
@@ -20,6 +17,7 @@ def mock_httpx_response():
         response.headers = headers or {}
         response.raise_for_status = Mock()
         return response
+
     return _create_response
 
 
@@ -34,10 +32,10 @@ def mock_game_initialization_response():
         "</script>"
         '<div class="bubble-body">'
         '<p class="question-text" id="question-label">Is your character real?</p>'
-        '</div>'
+        "</div>"
         '<div class="sub-bubble-propose">'
         '<p id="p-sub-bubble">I think of</p>'
-        '</div>'
+        "</div>"
         "</body></html>"
     )
 
@@ -50,7 +48,7 @@ def mock_answer_response_json():
         "akitude": "concentre.png",
         "step": "1",
         "progression": "10.5",
-        "question": "Is your character from a movie?"
+        "question": "Is your character from a movie?",
     }
 
 
@@ -64,7 +62,7 @@ def mock_win_response_json():
         "description_proposition": "Italian plumber from Nintendo",
         "pseudo": "Mario Bros",
         "flag_photo": "https://example.com/flag.jpg",
-        "photo": "https://example.com/mario.jpg"
+        "photo": "https://example.com/mario.jpg",
     }
 
 
@@ -85,6 +83,7 @@ def mock_choice_response():
 def akinator_instance():
     """Create a basic Akinator instance"""
     from akipy import Akinator
+
     return Akinator()
 
 

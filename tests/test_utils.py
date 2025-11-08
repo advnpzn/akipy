@@ -1,4 +1,5 @@
 """Tests for utility functions"""
+
 import pytest
 import httpx
 from akipy.utils import get_answer_id, request_handler, async_request_handler
@@ -58,11 +59,17 @@ class TestGetAnswerId:
 
     def test_get_answer_id_with_invalid_integer(self):
         """Test that invalid integers raise InvalidChoiceError"""
-        with pytest.raises(InvalidChoiceError, match="Answer ID must be between 0 and 4"):
+        with pytest.raises(
+            InvalidChoiceError, match="Answer ID must be between 0 and 4"
+        ):
             get_answer_id(5)
-        with pytest.raises(InvalidChoiceError, match="Answer ID must be between 0 and 4"):
+        with pytest.raises(
+            InvalidChoiceError, match="Answer ID must be between 0 and 4"
+        ):
             get_answer_id(-1)
-        with pytest.raises(InvalidChoiceError, match="Answer ID must be between 0 and 4"):
+        with pytest.raises(
+            InvalidChoiceError, match="Answer ID must be between 0 and 4"
+        ):
             get_answer_id(10)
 
     def test_get_answer_id_with_invalid_string(self):
@@ -86,9 +93,7 @@ class TestRequestHandler:
         mock_client.request.return_value = mock_response
 
         result = request_handler(
-            url="https://example.com",
-            method="GET",
-            client=mock_client
+            url="https://example.com", method="GET", client=mock_client
         )
 
         assert result == mock_response
@@ -104,10 +109,7 @@ class TestRequestHandler:
 
         data = {"key": "value"}
         result = request_handler(
-            url="https://example.com",
-            method="POST",
-            data=data,
-            client=mock_client
+            url="https://example.com", method="POST", data=data, client=mock_client
         )
 
         assert result == mock_response
@@ -118,16 +120,13 @@ class TestRequestHandler:
         """Test that a client is created if none is provided"""
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.raise_for_status = mocker.Mock()
-        
+
         mock_client_instance = mocker.Mock(spec=httpx.Client)
         mock_client_instance.request.return_value = mock_response
-        
-        mocker.patch('akipy.utils.httpx.Client', return_value=mock_client_instance)
 
-        result = request_handler(
-            url="https://example.com",
-            method="GET"
-        )
+        mocker.patch("akipy.utils.httpx.Client", return_value=mock_client_instance)
+
+        result = request_handler(url="https://example.com", method="GET")
 
         assert result == mock_response
 
@@ -137,11 +136,7 @@ class TestRequestHandler:
         mock_client.request.side_effect = httpx.HTTPError("Connection failed")
 
         with pytest.raises(httpx.HTTPError, match="Request failed"):
-            request_handler(
-                url="https://example.com",
-                method="GET",
-                client=mock_client
-            )
+            request_handler(url="https://example.com", method="GET", client=mock_client)
 
     def test_request_handler_with_additional_kwargs(self, mocker):
         """Test that additional kwargs are passed through"""
@@ -154,7 +149,7 @@ class TestRequestHandler:
             url="https://example.com",
             method="GET",
             client=mock_client,
-            follow_redirects=True
+            follow_redirects=True,
         )
 
         call_kwargs = mock_client.request.call_args[1]
@@ -173,9 +168,7 @@ class TestAsyncRequestHandler:
         mock_client.request = mocker.AsyncMock(return_value=mock_response)
 
         result = await async_request_handler(
-            url="https://example.com",
-            method="GET",
-            client=mock_client
+            url="https://example.com", method="GET", client=mock_client
         )
 
         assert result == mock_response
@@ -191,10 +184,7 @@ class TestAsyncRequestHandler:
 
         data = {"key": "value"}
         result = await async_request_handler(
-            url="https://example.com",
-            method="POST",
-            data=data,
-            client=mock_client
+            url="https://example.com", method="POST", data=data, client=mock_client
         )
 
         assert result == mock_response
@@ -206,16 +196,13 @@ class TestAsyncRequestHandler:
         """Test that async client is created if none provided"""
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.raise_for_status = mocker.Mock()
-        
+
         mock_client_instance = mocker.Mock(spec=httpx.AsyncClient)
         mock_client_instance.request = mocker.AsyncMock(return_value=mock_response)
-        
-        mocker.patch('akipy.utils.httpx.AsyncClient', return_value=mock_client_instance)
 
-        result = await async_request_handler(
-            url="https://example.com",
-            method="GET"
-        )
+        mocker.patch("akipy.utils.httpx.AsyncClient", return_value=mock_client_instance)
+
+        result = await async_request_handler(url="https://example.com", method="GET")
 
         assert result == mock_response
 
@@ -223,11 +210,11 @@ class TestAsyncRequestHandler:
     async def test_async_request_handler_raises_http_error(self, mocker):
         """Test that HTTPError is raised on async request failure"""
         mock_client = mocker.Mock(spec=httpx.AsyncClient)
-        mock_client.request = mocker.AsyncMock(side_effect=httpx.HTTPError("Connection failed"))
+        mock_client.request = mocker.AsyncMock(
+            side_effect=httpx.HTTPError("Connection failed")
+        )
 
         with pytest.raises(httpx.HTTPError, match="Request failed"):
             await async_request_handler(
-                url="https://example.com",
-                method="GET",
-                client=mock_client
+                url="https://example.com", method="GET", client=mock_client
             )

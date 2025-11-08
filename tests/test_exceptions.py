@@ -1,9 +1,10 @@
 """Tests for custom exceptions"""
+
 import pytest
 from akipy.exceptions import (
     InvalidLanguageError,
     CantGoBackAnyFurther,
-    InvalidChoiceError
+    InvalidChoiceError,
 )
 
 

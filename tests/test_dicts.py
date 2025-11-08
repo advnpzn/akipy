@@ -1,4 +1,5 @@
 """Tests for constants and dictionaries"""
+
 from akipy.dicts import HEADERS, LANG_MAP, THEME_ID, THEMES, ANSWERS, ANSWER_MAP
 
 
