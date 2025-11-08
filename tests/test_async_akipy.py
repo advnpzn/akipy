@@ -126,6 +126,11 @@ class TestAsyncAkinatorStartGame:
             "akipy.async_akipy.async_request_handler", return_value=mock_response
         )
 
+        # Clear the language cache to ensure consistent test behavior
+        from akipy import akinator
+
+        akinator.Akinator._validated_languages.clear()
+
         await aki.start_game(child_mode=True)
 
         # Check that child mode was set on the object

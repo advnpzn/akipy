@@ -37,6 +37,21 @@ from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
 from .utils import get_answer_id, request_handler
 
+# Pre-compile regex patterns for performance
+_SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
+_SIGNATURE_PATTERN = re.compile(r"#signature'\).val\('(.+?)'\)")
+_IDENTIFIANT_PATTERN = re.compile(r"#identifiant'\).val\('(.+?)'\)")
+_QUESTION_PATTERN = re.compile(
+    r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>'
+)
+_PROPOSITION_PATTERN = re.compile(
+    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>'
+)
+_WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
+_ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
+_TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
+_TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
+
 
 class Akinator:
     """
@@ -69,6 +84,9 @@ class Akinator:
         completion (str): Completion status.
     """
 
+    # Class-level cache for validated languages to avoid redundant network requests
+    _validated_languages = set()
+
     def __init__(self):
         """
         Initializes a new instance of the Akinator class.
@@ -82,9 +100,11 @@ class Akinator:
         self.signature = None
         self.identifiant = None
         self.child_mode: bool = False
+        self._child_mode_str = "false"  # Cached string representation
         self.lang = None
         self.available_themes = None
         self.theme = None
+        self.client = None
 
         self.question = None
         self.progression = None
@@ -109,17 +129,18 @@ class Akinator:
             ValueError: If the response does not contain expected data.
         """
         url = f"{self.uri}/game"
-        data = {"sid": self.theme, "cm": str(self.child_mode).lower()}
-        self.client = httpx.Client()
+        data = {"sid": self.theme, "cm": self._child_mode_str}
+        if self.client is None:
+            self.client = httpx.Client()
         try:
             req = request_handler(url=url, method="POST", data=data, client=self.client)
             req.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
             text = req.text
 
-            # Extract session, signature, and identifiant using regular expressions
-            self.session = re.search(r"#session'\).val\('(.+?)'\)", text)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", text)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", text)
+            # Extract session, signature, and identifiant using pre-compiled regex patterns
+            self.session = _SESSION_PATTERN.search(text)
+            self.signature = _SIGNATURE_PATTERN.search(text)
+            self.identifiant = _IDENTIFIANT_PATTERN.search(text)
 
             if not self.session or not self.signature or not self.identifiant:
                 raise ValueError(
@@ -131,20 +152,14 @@ class Akinator:
             self.identifiant = self.identifiant.group(1)
 
             # Extract the initial question
-            question_match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
-                text,
-            )
+            question_match = _QUESTION_PATTERN.search(text)
             if not question_match:
                 raise ValueError("Response does not contain expected data: question")
 
             self.question = html.unescape(question_match.group(1))
 
             # Extract the proposition message
-            proposition_match = re.search(
-                r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                text,
-            )
+            proposition_match = _PROPOSITION_PATTERN.search(text)
             if not proposition_match:
                 raise ValueError(
                     "Response does not contain expected data: proposition message"
@@ -203,20 +218,19 @@ class Akinator:
             InvalidLanguageError: If the provided language is not valid.
             HTTPStatusError: If the request to the Akinator server fails.
         """
-        try:
-            # Map the language code to the full name if necessary
-            if len(lang) > 2:
-                lang = LANG_MAP.get(lang, lang)
-            else:
-                # Ensure the provided language is valid
-                assert lang in LANG_MAP.values(), f"Invalid language: {lang}"
-        except AssertionError as e:
-            raise InvalidLanguageError(lang) from e
+        # Map the language code to the full name if necessary
+        if len(lang) > 2:
+            lang = LANG_MAP.get(lang, lang)
+        else:
+            # Ensure the provided language is valid
+            if lang not in LANG_MAP.values():
+                raise InvalidLanguageError(lang)
 
         # Construct the URL for the Akinator server
         url = f"https://{lang}.akinator.com"
 
-        try:
+        # Check cache first to avoid redundant validation requests
+        if lang not in self._validated_languages:
             # Make a GET request to the Akinator server
             req = request_handler(url=url, method="GET")
             # Check if the request was successful
@@ -224,15 +238,15 @@ class Akinator:
                 raise httpx.HTTPStatusError(
                     f"Failed to connect to Akinator server: {req.status_code}"
                 )
-            else:
-                # Update the instance variables with the response data
-                self.uri = url
-                self.lang = lang
+            # Cache the validated language
+            self._validated_languages.add(lang)
 
-                self.available_themes = THEMES.get(lang, [])
-                self.theme = THEME_ID.get(self.available_themes[0], None)
-        except Exception as e:
-            raise e
+        # Update the instance variables with the response data
+        self.uri = url
+        self.lang = lang
+
+        self.available_themes = THEMES.get(lang, [])
+        self.theme = THEME_ID.get(self.available_themes[0], None)
 
     def start_game(self, language: str | None = "en", child_mode: bool = False):
         """
@@ -243,7 +257,8 @@ class Akinator:
         :param child_mode: False
         :return: The first question asked by the Akinator.
         """
-
+        self.child_mode = child_mode
+        self._child_mode_str = str(child_mode).lower()
         self.__get_region(lang=language)
         self.__initialise()
         return self
@@ -289,20 +304,15 @@ class Akinator:
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "answer": get_answer_id(option),
             "step_last_proposition": self.step_last_proposition,
             "session": self.session,
             "signature": self.signature,
         }
 
-        try:
-            resp = request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = request_handler(url=url, method="POST", data=data, client=self.client)
+        self.handle_response(resp)
         return self
 
     def back(self):
@@ -313,19 +323,14 @@ class Akinator:
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
         }
         self.win = False
 
-        try:
-            resp = request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = request_handler(url=url, method="POST", data=data, client=self.client)
+        self.handle_response(resp)
         return self
 
     def exclude(self):
@@ -340,20 +345,15 @@ class Akinator:
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
         }
         self.win = False
         self.id_proposition = ""
 
-        try:
-            resp = request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = request_handler(url=url, method="POST", data=data, client=self.client)
+        self.handle_response(resp)
         return self
 
     def choose(self):
@@ -374,18 +374,15 @@ class Akinator:
             "pflag_photo": self.flag_photo,
         }
 
-        try:
-            resp = request_handler(
-                url=url,
-                method="POST",
-                data=data,
-                client=self.client,
-                follow_redirects=True,
-            )
-            if resp.status_code not in range(200, 400):
-                resp.raise_for_status()
-        except Exception as e:
-            raise e
+        resp = request_handler(
+            url=url,
+            method="POST",
+            data=data,
+            client=self.client,
+            follow_redirects=True,
+        )
+        if resp.status_code not in range(200, 400):
+            resp.raise_for_status()
         self.finished = True
         self.win = True
         self.akitude = "triomphe.png"
@@ -393,18 +390,12 @@ class Akinator:
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(
-                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
-            )
+            win_message = html.unescape(_WIN_MESSAGE_PATTERN.search(text).group(1))
             already_played = html.unescape(
-                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
+                _ALREADY_PLAYED_PATTERN.search(text).group(1)
             )
-            times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(
-                re.search(
-                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
-                ).group(1)
-            )
+            times_selected = _TIMES_SELECTED_PATTERN.search(text).group(1)
+            times = html.unescape(_TIMES_PATTERN.search(text).group(1))
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
@@ -437,6 +428,25 @@ class Akinator:
 
     def no(self):
         return self.answer("no")
+
+    def close(self):
+        """Close the HTTP client if it exists."""
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures client is closed."""
+        self.close()
+        return False
+
+    def __del__(self):
+        """Destructor to ensure client is closed."""
+        self.close()
 
     def __str__(self):
         if self.win and not self.finished:

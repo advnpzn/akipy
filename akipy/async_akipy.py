@@ -24,7 +24,6 @@ SOFTWARE.
 """
 
 import html
-import re
 
 try:
     import httpx
@@ -35,6 +34,17 @@ from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
 from .utils import get_answer_id, async_request_handler
 from .akinator import Akinator as SyncAkinator
+from .akinator import (
+    _SESSION_PATTERN,
+    _SIGNATURE_PATTERN,
+    _IDENTIFIANT_PATTERN,
+    _QUESTION_PATTERN,
+    _PROPOSITION_PATTERN,
+    _WIN_MESSAGE_PATTERN,
+    _ALREADY_PLAYED_PATTERN,
+    _TIMES_SELECTED_PATTERN,
+    _TIMES_PATTERN,
+)
 
 
 class Akinator(SyncAkinator):
@@ -46,8 +56,9 @@ class Akinator(SyncAkinator):
 
     async def __initialise(self):
         url = f"{self.uri}/game"
-        data = {"sid": self.theme, "cm": str(self.child_mode).lower()}
-        self.client = httpx.AsyncClient()
+        data = {"sid": self.theme, "cm": self._child_mode_str}
+        if self.client is None:
+            self.client = httpx.AsyncClient()
         try:
             req = (
                 await async_request_handler(
@@ -55,22 +66,14 @@ class Akinator(SyncAkinator):
                 )
             ).text
 
-            self.session = re.search(r"#session'\).val\('(.+?)'\)", req).group(1)
-            self.signature = re.search(r"#signature'\).val\('(.+?)'\)", req).group(1)
-            self.identifiant = re.search(r"#identifiant'\).val\('(.+?)'\)", req).group(
-                1
-            )
+            self.session = _SESSION_PATTERN.search(req).group(1)
+            self.signature = _SIGNATURE_PATTERN.search(req).group(1)
+            self.identifiant = _IDENTIFIANT_PATTERN.search(req).group(1)
 
-            match = re.search(
-                r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>',
-                req,
-            )
+            match = _QUESTION_PATTERN.search(req)
             self.question = html.unescape(match.group(1))
             self.proposition_message = html.unescape(
-                re.search(
-                    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>',
-                    req,
-                ).group(1)
+                _PROPOSITION_PATTERN.search(req).group(1)
             )
             self.progression = "0.00000"
             self.step = "0"
@@ -79,26 +82,30 @@ class Akinator(SyncAkinator):
             raise httpx.HTTPStatusError
 
     async def __get_region(self, lang):
-        try:
-            if len(lang) > 2:
-                lang = LANG_MAP[lang]
-            else:
-                assert lang in LANG_MAP.values()
-        except Exception:
-            raise InvalidLanguageError(lang)
+        # Map the language code to the full name if necessary
+        if len(lang) > 2:
+            lang = LANG_MAP.get(lang, lang)
+        else:
+            if lang not in LANG_MAP.values():
+                raise InvalidLanguageError(lang)
+
         url = f"https://{lang}.akinator.com"
-        try:
+
+        # Check cache first to avoid redundant validation requests
+        if lang not in self._validated_languages:
             req = await async_request_handler(url=url, method="GET")
             if req.status_code != 200:
-                raise httpx.HTTPStatusError
-            else:
-                self.uri = url
-                self.lang = lang
+                raise httpx.HTTPStatusError(
+                    f"Failed to connect to Akinator server: {req.status_code}"
+                )
+            # Cache the validated language
+            self._validated_languages.add(lang)
 
-                self.available_themes = THEMES[lang]
-                self.theme = THEME_ID[self.available_themes[0]]
-        except Exception as e:
-            raise e
+        self.uri = url
+        self.lang = lang
+
+        self.available_themes = THEMES.get(lang, [])
+        self.theme = THEME_ID.get(self.available_themes[0], None)
 
     async def start_game(self, language: str | None = "en", child_mode: bool = False):
         """
@@ -109,7 +116,8 @@ class Akinator(SyncAkinator):
         :param child_mode: False
         :return: The first question asked by the Akinator.
         """
-
+        self.child_mode = child_mode
+        self._child_mode_str = str(child_mode).lower()
         await self.__get_region(language)
         await self.__initialise()
         return self
@@ -130,20 +138,17 @@ class Akinator(SyncAkinator):
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "answer": get_answer_id(option),
             "step_last_proposition": self.step_last_proposition,
             "session": self.session,
             "signature": self.signature,
         }
 
-        try:
-            resp = await async_request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = await async_request_handler(
+            url=url, method="POST", data=data, client=self.client
+        )
+        self.handle_response(resp)
         return self
 
     async def back(self):
@@ -154,19 +159,16 @@ class Akinator(SyncAkinator):
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
         }
         self.win = False
 
-        try:
-            resp = await async_request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = await async_request_handler(
+            url=url, method="POST", data=data, client=self.client
+        )
+        self.handle_response(resp)
         return self
 
     async def exclude(self):
@@ -181,20 +183,17 @@ class Akinator(SyncAkinator):
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
-            "cm": str(self.child_mode).lower(),
+            "cm": self._child_mode_str,
             "session": self.session,
             "signature": self.signature,
         }
         self.win = False
         self.id_proposition = ""
 
-        try:
-            resp = await async_request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self.handle_response(resp)
-        except Exception as e:
-            raise e
+        resp = await async_request_handler(
+            url=url, method="POST", data=data, client=self.client
+        )
+        self.handle_response(resp)
         return self
 
     async def choose(self):
@@ -215,18 +214,15 @@ class Akinator(SyncAkinator):
             "pflag_photo": self.flag_photo,
         }
 
-        try:
-            resp = await async_request_handler(
-                url=url,
-                method="POST",
-                data=data,
-                client=self.client,
-                follow_redirects=True,
-            )
-            if resp.status_code not in range(200, 400):
-                resp.raise_for_status()
-        except Exception as e:
-            raise e
+        resp = await async_request_handler(
+            url=url,
+            method="POST",
+            data=data,
+            client=self.client,
+            follow_redirects=True,
+        )
+        if resp.status_code not in range(200, 400):
+            resp.raise_for_status()
         self.finished = True
         self.win = True
         self.akitude = "triomphe.png"
@@ -234,20 +230,43 @@ class Akinator(SyncAkinator):
         try:
             text = resp.text
             # The response for this request is always HTML+JS, so we need to parse it to get the number of times the character has been played, and the win message in the correct language
-            win_message = html.unescape(
-                re.search(r'<span class="win-sentence">(.+?)<\/span>', text).group(1)
-            )
+            win_message = html.unescape(_WIN_MESSAGE_PATTERN.search(text).group(1))
             already_played = html.unescape(
-                re.search(r'let tokenDejaJoue = "([\w\s]+)";', text).group(1)
+                _ALREADY_PLAYED_PATTERN.search(text).group(1)
             )
-            times_selected = re.search(r'let timesSelected = "(\d+)";', text).group(1)
-            times = html.unescape(
-                re.search(
-                    r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>', text
-                ).group(1)
-            )
+            times_selected = _TIMES_SELECTED_PATTERN.search(text).group(1)
+            times = html.unescape(_TIMES_PATTERN.search(text).group(1))
             self.question = f"{win_message}\n{already_played} {times_selected} {times}"
         except Exception:
             pass
         self.progression = "100.00000"
         return self
+
+    async def close(self):
+        """Close the HTTP client if it exists."""
+        if self.client is not None:
+            await self.client.aclose()
+            self.client = None
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - ensures client is closed."""
+        await self.close()
+        return False
+
+    def __del__(self):
+        """Destructor to ensure client is closed."""
+        if self.client is not None:
+            try:
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.close())
+                else:
+                    loop.run_until_complete(self.close())
+            except Exception:
+                pass
