@@ -24,6 +24,7 @@ SOFTWARE.
 """
 
 import html
+import re
 
 try:
     import httpx
@@ -33,32 +34,68 @@ except ImportError:
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError, CantGoBackAnyFurther, InvalidChoiceError
 from .utils import get_answer_id, async_request_handler
-from .akinator import Akinator as SyncAkinator
-from .akinator import (
-    _SESSION_PATTERN,
-    _SIGNATURE_PATTERN,
-    _IDENTIFIANT_PATTERN,
-    _QUESTION_PATTERN,
-    _PROPOSITION_PATTERN,
-    _WIN_MESSAGE_PATTERN,
-    _ALREADY_PLAYED_PATTERN,
-    _TIMES_SELECTED_PATTERN,
-    _TIMES_PATTERN,
+
+# Pre-compile regex patterns for performance (shared with sync version)
+_SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
+_SIGNATURE_PATTERN = re.compile(r"#signature'\).val\('(.+?)'\)")
+_IDENTIFIANT_PATTERN = re.compile(r"#identifiant'\).val\('(.+?)'\)")
+_QUESTION_PATTERN = re.compile(
+    r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>'
 )
+_PROPOSITION_PATTERN = re.compile(
+    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>'
+)
+_WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
+_ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
+_TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
+_TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
 
 
-class Akinator(SyncAkinator):
+class Akinator:
     """
     The ``Akinator`` Class represents the Akinator Game.
     This is the Asynchronous version, requiring `await` for requests.
     You need to create an Instance of this Class to get started.
     """
 
+    # Class-level cache for validated languages to avoid redundant network requests
+    _validated_languages = set()
+
+    def __init__(self):
+        """
+        Initializes a new instance of the async Akinator class.
+        """
+        self.flag_photo = None
+        self.photo = None
+        self.pseudo = None
+        self.uri = None
+        self.theme = None
+        self.session = None
+        self.signature = None
+        self.identifiant = None
+        self.child_mode = False
+        self._child_mode_str = "false"
+        self.lang = None
+        self.available_themes = []
+        self.question = None
+        self.progression = None
+        self.step = None
+        self.akitude = None
+        self.step_last_proposition = ""
+        self.finished = False
+        self.win = False
+        self.id_proposition = ""
+        self.name_proposition = ""
+        self.description_proposition = ""
+        self.proposition_message = ""
+        self.completion = "OK"
+        self.client = None
+
     async def __initialise(self):
         url = f"{self.uri}/game"
         data = {"sid": self.theme, "cm": self._child_mode_str}
         if self.client is None:
-            self.client = httpx.AsyncClient()
+            self.client = httpx.AsyncClient(timeout=30.0)
         try:
             req = (
                 await async_request_handler(
@@ -107,6 +144,94 @@ class Akinator(SyncAkinator):
         self.available_themes = THEMES.get(lang, [])
         self.theme = THEME_ID.get(self.available_themes[0], None)
 
+    def __update(self, action: str, resp: dict):
+        """Update the instance attributes based on the API response."""
+        if action == "answer":
+            self.question = html.unescape(resp.get("question", ""))
+            self.progression = resp.get("progression", "0.00000")
+            self.step = resp.get("step", "0")
+            self.akitude = resp.get("akitude", "defi.png")
+            self.step_last_proposition = resp.get("step_last_proposition", "")
+        elif action == "win":
+            self.win = True
+            self.id_proposition = resp.get("id_proposition", "")
+            self.name_proposition = html.unescape(resp.get("name_proposition", ""))
+            self.description_proposition = html.unescape(
+                resp.get("description_proposition", "")
+            )
+            self.pseudo = resp.get("pseudo", "")
+            self.photo = resp.get("photo", "")
+            self.flag_photo = resp.get("flag_photo", "")
+            self.progression = resp.get("progression", "100.00000")
+            self.step = resp.get("step", "0")
+            self.akitude = resp.get("akitude", "inspiration_legere.png")
+
+    def handle_response(self, resp: httpx.Response):
+        """Handle API response and update game state."""
+        resp.raise_for_status()
+
+        # Check if response is HTML instead of JSON
+        content_type = getattr(resp, "headers", {}).get("content-type", "").lower()
+        if "text/html" in content_type:
+            text = resp.text
+            # The API sometimes returns HTML error pages with 200 status
+            if "<!DOCTYPE html>" in text or "<html" in text:
+                raise RuntimeError(
+                    f"Server returned HTML instead of JSON. This typically means the session has expired "
+                    f"or there was a server error. Response preview: {text[:500]}"
+                )
+
+        try:
+            data = resp.json()
+        except Exception as e:
+            text = resp.text
+            if "A technical problem has occurred." in text:
+                raise RuntimeError(
+                    f"A technical problem has occurred. Response: {text[:500]}"
+                )
+            raise RuntimeError(
+                f"Failed to parse JSON response. Error: {e}. Response (first 500 chars): {text[:500]}"
+            )
+
+        # Handle empty array response from /exclude endpoint when no more characters are available
+        if isinstance(data, list) and len(data) == 0:
+            raise RuntimeError("No more characters available to propose")
+
+        # Ensure we have a dict to work with
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                f"Unexpected response type: {type(data).__name__}. Response: {data}"
+            )
+
+        if "completion" not in data:
+            # Assume the completion key is missing because a step has been undone or skipped
+            data["completion"] = self.completion
+        if data["completion"] == "KO - TIMEOUT":
+            raise TimeoutError("The session has timed out.")
+        if data["completion"] == "SOUNDLIKE":
+            self.finished = True
+            self.win = True
+            if not self.id_proposition:
+                self.defeat()
+        elif "id_proposition" in data:
+            self.__update(action="win", resp=data)
+        else:
+            self.__update(action="answer", resp=data)
+        self.completion = data["completion"]
+
+    def defeat(self):
+        """Handle defeat state when Akinator can't guess the character."""
+        self.finished = True
+        self.win = False
+        self.akitude = "deception.png"
+        self.id_proposition = ""
+        # TODO: Get the correct defeat message in the user's language
+        self.question = (
+            "Bravo, you have defeated me !\nShare your feat with your friends"
+        )
+        self.progression = "100.00000"
+        return self
+
     async def start_game(self, language: str | None = "en", child_mode: bool = False):
         """
         This method is responsible for actually starting the game scene.
@@ -152,7 +277,7 @@ class Akinator(SyncAkinator):
         return self
 
     async def back(self):
-        if self.step == 1:
+        if int(self.step) <= 1:
             raise CantGoBackAnyFurther("You are already at the first question")
         url = f"{self.uri}/cancel_answer"
         data = {
@@ -276,15 +401,41 @@ class Akinator(SyncAkinator):
         return False
 
     def __del__(self):
-        """Destructor to ensure client is closed."""
+        """Warn if client wasn't properly closed."""
         if self.client is not None:
-            try:
-                import asyncio
+            import warnings
 
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.close())
-                else:
-                    loop.run_until_complete(self.close())
-            except Exception:
-                pass
+            warnings.warn(
+                "Akinator async client was not properly closed. "
+                "Use 'async with Akinator()' or call 'await aki.close()' explicitly.",
+                ResourceWarning,
+                stacklevel=2,
+            )
+
+    @property
+    def confidence(self):
+        """Return the confidence level as a float between 0 and 1."""
+        return float(self.progression) / 100
+
+    @property
+    def akitude_url(self):
+        """Return the full URL to the akitude image."""
+        return f"{self.uri}/assets/img/akitudes_670x1096/{self.akitude}"
+
+    async def yes(self):
+        """Convenience method to answer 'yes'."""
+        return await self.answer("yes")
+
+    async def no(self):
+        """Convenience method to answer 'no'."""
+        return await self.answer("no")
+
+    def __str__(self):
+        """Return a string representation of the current question or result."""
+        if self.win and not self.finished:
+            return f"{self.proposition_message} {self.name_proposition} ({self.description_proposition})"
+        return self.question or ""
+
+    def __repr__(self):
+        """Return a detailed string representation of the Akinator instance."""
+        return f"Akinator(question={self.question!r}, step={self.step}, progression={self.progression})"

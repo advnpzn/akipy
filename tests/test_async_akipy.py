@@ -14,12 +14,14 @@ class TestAsyncAkinatorInitialization:
         aki = AsyncAkinator()
         assert isinstance(aki, AsyncAkinator)
 
-    def test_async_akinator_inherits_from_sync(self):
-        """Test that async Akinator inherits from sync version"""
+    def test_async_akinator_is_independent_class(self):
+        """Test that async Akinator is its own independent class, not inheriting from sync"""
         from akipy.akinator import Akinator as SyncAkinator
 
         aki = AsyncAkinator()
-        assert isinstance(aki, SyncAkinator)
+        # Async should NOT inherit from sync for truly async behavior
+        assert not isinstance(aki, SyncAkinator)
+        assert isinstance(aki, AsyncAkinator)
 
     def test_async_akinator_initial_attributes(self):
         """Test that async Akinator has correct initial attributes"""
@@ -127,18 +129,21 @@ class TestAsyncAkinatorStartGame:
         )
 
         # Clear the language cache to ensure consistent test behavior
-        from akipy import akinator
-
-        akinator.Akinator._validated_languages.clear()
+        AsyncAkinator._validated_languages.clear()
 
         await aki.start_game(child_mode=True)
 
         # Check that child mode was set on the object
         assert aki.child_mode is True
         # Verify that request was made with child_mode=true
-        # The second call is to /game with cm parameter
-        call_args = mock_request.call_args_list[1]
-        assert call_args[1]["data"]["cm"] == "true"
+        # Find the call to /game with cm parameter (may be first or second call depending on cache)
+        game_call = None
+        for call in mock_request.call_args_list:
+            if "data" in call[1] and "cm" in call[1]["data"]:
+                game_call = call
+                break
+        assert game_call is not None, "Could not find /game call with cm parameter"
+        assert game_call[1]["data"]["cm"] == "true"
 
 
 class TestAsyncAkinatorAnswer:

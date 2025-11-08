@@ -343,7 +343,7 @@ class Akinator:
         return self
 
     def back(self):
-        if self.step == 1:
+        if int(self.step) <= 1:
             raise CantGoBackAnyFurther("You are already at the first question")
         url = f"{self.uri}/cancel_answer"
         data = {
