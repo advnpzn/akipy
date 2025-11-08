@@ -20,7 +20,7 @@ dependencies = [
     "ruff>=0.9.3",
 ]
 name = "akipy"
-version = "0.2.3"
+version = "0.2.4"
 description = "A Python library wrapper for Akinator"
 readme = "README.md"
 classifiers = [
