@@ -38,7 +38,7 @@ There is both synchronous and asynchronous variants of `akipy` available.
 
 Synchronous: `from akipy import Akinator`
 
-Asynchronous: `from akipy.async_akipy import Akinator`
+Asynchronous: `from akipy.async_akinator import Akinator`
 
 I'll provide a sample usage for synchronous usage of `Akinator`.
 All the examples are also in the project's examples folder. So please check them out as well.
@@ -202,22 +202,22 @@ If tests fail:
 
 ```
 akipy/
-├── akipy/              # Main package source code
+├── akipy/                  # Main package source code
 │   ├── __init__.py
-│   ├── akinator.py     # Synchronous Akinator class
-│   ├── async_akipy.py  # Asynchronous Akinator class
-│   ├── dicts.py        # Constants and mappings
-│   ├── exceptions.py   # Custom exceptions
-│   └── utils.py        # Utility functions
-├── tests/              # Test suite
-│   ├── conftest.py     # Pytest fixtures
+│   ├── akinator.py         # Synchronous Akinator class
+│   ├── async_akinator.py   # Asynchronous Akinator class
+│   ├── dicts.py            # Constants and mappings
+│   ├── exceptions.py       # Custom exceptions
+│   └── utils.py            # Utility functions
+├── tests/                  # Test suite
+│   ├── conftest.py         # Pytest fixtures
 │   ├── test_akinator.py
 │   ├── test_async_akipy.py
 │   ├── test_utils.py
 │   ├── test_exceptions.py
 │   └── test_dicts.py
-├── examples/           # Example usage scripts
-├── .github/workflows/  # CI/CD configuration
-├── pyproject.toml      # Project metadata and dependencies
-└── README.md           # This file
+├── examples/               # Example usage scripts
+├── .github/workflows/      # CI/CD configuration
+├── pyproject.toml          # Project metadata and dependencies
+└── README.md               # This file
 ```

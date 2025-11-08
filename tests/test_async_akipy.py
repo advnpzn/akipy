@@ -2,7 +2,7 @@
 
 import pytest
 import httpx
-from akipy.async_akipy import Akinator as AsyncAkinator
+from akipy.async_akinator import Akinator as AsyncAkinator
 from akipy.exceptions import CantGoBackAnyFurther, InvalidChoiceError
 
 
@@ -48,7 +48,7 @@ class TestAsyncAkinatorStartGame:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.start_game()
@@ -77,7 +77,7 @@ class TestAsyncAkinatorStartGame:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         await aki.start_game(language="french")
@@ -98,7 +98,7 @@ class TestAsyncAkinatorStartGame:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         await aki.start_game(language="es")
@@ -123,7 +123,7 @@ class TestAsyncAkinatorStartGame:
 
         # Mock the request handler
         mock_request = mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         # Clear the language cache to ensure consistent test behavior
@@ -166,7 +166,7 @@ class TestAsyncAkinatorAnswer:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.answer("yes")
@@ -198,7 +198,7 @@ class TestAsyncAkinatorAnswer:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.answer("no")
@@ -227,7 +227,7 @@ class TestAsyncAkinatorAnswer:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.answer(2)  # I don't know
@@ -302,7 +302,7 @@ class TestAsyncAkinatorBack:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.back()
@@ -340,7 +340,7 @@ class TestAsyncAkinatorBack:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         await aki.back()
@@ -383,7 +383,7 @@ class TestAsyncAkinatorExclude:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.exclude()
@@ -441,7 +441,7 @@ class TestAsyncAkinatorChoose:
         mock_response.raise_for_status = mocker.Mock()
 
         mocker.patch(
-            "akipy.async_akipy.async_request_handler", return_value=mock_response
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
         )
 
         result = await aki.choose()

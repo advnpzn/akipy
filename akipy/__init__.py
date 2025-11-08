@@ -6,7 +6,7 @@ akipy - A Python wrapper library for Akinator
 """
 
 from .akinator import Akinator as Akinator
-from . import async_akipy as async_akipy
+from . import async_akinator as async_akinator
 from .exceptions import (
     CantGoBackAnyFurther,
     InvalidChoiceError,
@@ -15,7 +15,7 @@ from .exceptions import (
 
 __all__ = [
     "Akinator",
-    "async_akipy",
+    "async_akinator",
     "CantGoBackAnyFurther",
     "InvalidChoiceError",
     "InvalidLanguageError",
