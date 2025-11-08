@@ -267,7 +267,7 @@ class Akinator:
         resp.raise_for_status()
 
         # Check if response is HTML instead of JSON
-        content_type = resp.headers.get("content-type", "").lower()
+        content_type = getattr(resp, "headers", {}).get("content-type", "").lower()
         if "text/html" in content_type:
             text = resp.text
             # The API sometimes returns HTML error pages with 200 status
