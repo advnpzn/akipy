@@ -27,11 +27,11 @@ def request_handler(
     Raises:
         httpx.HTTPError: If the request fails.
     """
-    client = client or httpx.Client()
+    client = client or httpx.Client(timeout=30.0)
     if data:
         kwargs["data"] = data
     try:
-        response = client.request(method, url, headers=HEADERS, timeout=30, **kwargs)
+        response = client.request(method, url, headers=HEADERS, **kwargs)
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
         return response
     except httpx.HTTPError as e:
@@ -61,13 +61,11 @@ async def async_request_handler(
     Raises:
         httpx.HTTPError: If the request fails.
     """
-    client = client or httpx.AsyncClient()
+    client = client or httpx.AsyncClient(timeout=30.0)
     if data:
         kwargs["data"] = data
     try:
-        response = await client.request(
-            method, url, headers=HEADERS, timeout=30, **kwargs
-        )
+        response = await client.request(method, url, headers=HEADERS, **kwargs)
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
         return response
     except httpx.HTTPError as e:
