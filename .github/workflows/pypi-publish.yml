@@ -1,4 +1,4 @@
-name: Publish Python 🐍 distributions 📦 to PyPI
+name: Publish Python distributions to PyPI
 
 on:
   release:
@@ -6,22 +6,56 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-n-publish:
-    name: Use PDM to Build and publish Python 🐍 distributions 📦 to PyPI
+  test:
+    name: Run tests before publish
     runs-on: ubuntu-latest
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv add --dev pytest pytest-asyncio pytest-mock pytest-cov pytest-httpx
+
+      - name: Run tests
+        run: uv run pytest --no-cov
+
+  build-and-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    needs: test
+
     permissions:
-      # IMPORTANT: this permission is mandatory for trusted publishing
-      id-token: write
+      id-token: write  # required for OIDC trusted publishing
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@master
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
         with:
-          submodules: true
+          python-version: "3.13"
 
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
-      - name: Build and Publish distribution 📦 to PyPI
-        run: pdm publish
+      - name: Build distributions
+        run: uv build
+
+      - name: Publish to PyPI
+        run: uv publish
