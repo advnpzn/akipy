@@ -86,9 +86,9 @@ class TestRequestHandler:
     """Tests for request_handler function"""
 
     def test_request_handler_get_request(self, mocker):
-        """Test GET request without data"""
         mock_client = mocker.Mock(spec=httpx.Client)
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
         mock_client.request.return_value = mock_response
 
@@ -101,9 +101,9 @@ class TestRequestHandler:
         mock_response.raise_for_status.assert_called_once()
 
     def test_request_handler_post_request_with_data(self, mocker):
-        """Test POST request with data"""
         mock_client = mocker.Mock(spec=httpx.Client)
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
         mock_client.request.return_value = mock_response
 
@@ -117,8 +117,8 @@ class TestRequestHandler:
         assert call_kwargs["data"] == data
 
     def test_request_handler_creates_client_if_none_provided(self, mocker):
-        """Test that a client is created if none is provided"""
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
 
         mock_client_instance = mocker.Mock(spec=httpx.Client)
@@ -139,9 +139,9 @@ class TestRequestHandler:
             request_handler(url="https://example.com", method="GET", client=mock_client)
 
     def test_request_handler_with_additional_kwargs(self, mocker):
-        """Test that additional kwargs are passed through"""
         mock_client = mocker.Mock(spec=httpx.Client)
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
         mock_client.request.return_value = mock_response
 
@@ -161,9 +161,9 @@ class TestAsyncRequestHandler:
 
     @pytest.mark.asyncio
     async def test_async_request_handler_get_request(self, mocker):
-        """Test async GET request"""
         mock_client = mocker.Mock(spec=httpx.AsyncClient)
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
         mock_client.request = mocker.AsyncMock(return_value=mock_response)
 
@@ -176,9 +176,9 @@ class TestAsyncRequestHandler:
 
     @pytest.mark.asyncio
     async def test_async_request_handler_post_with_data(self, mocker):
-        """Test async POST request with data"""
         mock_client = mocker.Mock(spec=httpx.AsyncClient)
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
         mock_client.request = mocker.AsyncMock(return_value=mock_response)
 
@@ -193,8 +193,8 @@ class TestAsyncRequestHandler:
 
     @pytest.mark.asyncio
     async def test_async_request_handler_creates_client_if_none(self, mocker):
-        """Test that async client is created if none provided"""
         mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
         mock_response.raise_for_status = mocker.Mock()
 
         mock_client_instance = mocker.Mock(spec=httpx.AsyncClient)
@@ -218,3 +218,50 @@ class TestAsyncRequestHandler:
             await async_request_handler(
                 url="https://example.com", method="GET", client=mock_client
             )
+
+
+class TestRequestHandlerFlareSolverrBypass:
+    """Tests for request_handler with header rotation"""
+
+    def test_request_handler_uses_rotated_headers(self, mocker):
+        mock_client = mocker.Mock(spec=httpx.Client)
+        success_response = mocker.Mock(spec=httpx.Response)
+        success_response.status_code = 200
+        success_response.raise_for_status = mocker.Mock()
+
+        mock_client.request.return_value = success_response
+
+        request_handler(
+            url="https://en.akinator.com",
+            method="GET",
+            client=mock_client,
+        )
+
+        call_kwargs = mock_client.request.call_args[1]
+        assert "headers" in call_kwargs
+        assert "Mozilla" in call_kwargs["headers"]["User-Agent"]
+        assert call_kwargs["headers"]["x-requested-with"] == "XMLHttpRequest"
+
+
+class TestAsyncRequestHandlerFlareSolverrBypass:
+    """Tests for async_request_handler with header rotation"""
+
+    @pytest.mark.asyncio
+    async def test_async_request_handler_uses_rotated_headers(self, mocker):
+        mock_client = mocker.Mock(spec=httpx.AsyncClient)
+        success_response = mocker.Mock(spec=httpx.Response)
+        success_response.status_code = 200
+        success_response.raise_for_status = mocker.Mock()
+
+        mock_client.request = mocker.AsyncMock(return_value=success_response)
+
+        await async_request_handler(
+            url="https://en.akinator.com",
+            method="GET",
+            client=mock_client,
+        )
+
+        call_kwargs = mock_client.request.call_args[1]
+        assert "headers" in call_kwargs
+        assert "Mozilla" in call_kwargs["headers"]["User-Agent"]
+        assert call_kwargs["headers"]["x-requested-with"] == "XMLHttpRequest"

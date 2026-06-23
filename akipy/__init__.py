@@ -12,6 +12,7 @@ from .exceptions import (
     InvalidChoiceError,
     InvalidLanguageError,
 )
+from .flaresolverr import FlareSolverrClient, AsyncFlareSolverrClient, FlareSolverrError
 
 __all__ = [
     "Akinator",
@@ -19,4 +20,7 @@ __all__ = [
     "CantGoBackAnyFurther",
     "InvalidChoiceError",
     "InvalidLanguageError",
+    "FlareSolverrClient",
+    "AsyncFlareSolverrClient",
+    "FlareSolverrError",
 ]

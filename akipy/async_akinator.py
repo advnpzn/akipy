@@ -39,7 +39,13 @@ from ._base import (
     TIMES_PATTERN,
 )
 from .exceptions import CantGoBackAnyFurther, InvalidChoiceError
-from .utils import get_answer_id, async_request_handler
+from .flaresolverr import AsyncFlareSolverrClient
+from .utils import (
+    get_answer_id,
+    async_request_handler,
+    _make_response,
+    _extract_json_from_html,
+)
 
 
 class Akinator(_BaseAkinator):
@@ -49,8 +55,8 @@ class Akinator(_BaseAkinator):
     You need to create an Instance of this Class to get started.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, flaresolverr_url: str | None = None):
+        super().__init__(flaresolverr_url=flaresolverr_url)
 
     async def __initialise(self):
         url = f"{self.uri}/game"
@@ -58,12 +64,33 @@ class Akinator(_BaseAkinator):
         if self.client is None:
             self.client = httpx.AsyncClient(timeout=30.0)
         try:
-            req = await async_request_handler(
-                url=url, method="POST", data=data, client=self.client
-            )
-            self._parse_init_response(req.text)
+            if self.flaresolverr_url:
+                if self._flaresolverr_client is None:
+                    self._flaresolverr_client = AsyncFlareSolverrClient(
+                        self.flaresolverr_url
+                    )
+                import urllib.parse
+
+                post_data = urllib.parse.urlencode(data)
+                solution = await self._flaresolverr_client.request_post(
+                    url, post_data=post_data
+                )
+                self._flaresolverr_cookies = {
+                    c["name"]: c["value"] for c in solution.get("cookies", [])
+                }
+                self._flaresolverr_user_agent = solution.get("userAgent")
+                text = solution.get("response", "")
+                self._parse_init_response(text)
+            else:
+                req = await async_request_handler(
+                    url=url,
+                    method="POST",
+                    data=data,
+                    client=self.client,
+                )
+                self._parse_init_response(req.text)
         except httpx.HTTPError as e:
-            raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
+            raise RuntimeError(f"Failed to connect to Akinator server: {e}")
         except ValueError as e:
             raise ValueError(f"Invalid response data: {e}")
         except Exception as e:
@@ -95,9 +122,20 @@ class Akinator(_BaseAkinator):
         data = self._base_data()
         data["answer"] = get_answer_id(option)
         data["step_last_proposition"] = self.step_last_proposition
-        resp = await async_request_handler(
-            url=f"{self.uri}/answer", method="POST", data=data, client=self.client
-        )
+        url = f"{self.uri}/answer"
+        if self.flaresolverr_url:
+            import urllib.parse
+
+            post_data = urllib.parse.urlencode(data)
+            solution = await self._flaresolverr_client.request_post(
+                url, post_data=post_data
+            )
+            text = _extract_json_from_html(solution.get("response", ""))
+            resp = _make_response(text)
+        else:
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
         self.handle_response(resp)
         return self
 
@@ -105,12 +143,21 @@ class Akinator(_BaseAkinator):
         if int(self.step) <= 1:
             raise CantGoBackAnyFurther("You are already at the first question")
         self.win = False
-        resp = await async_request_handler(
-            url=f"{self.uri}/cancel_answer",
-            method="POST",
-            data=self._base_data(),
-            client=self.client,
-        )
+        url = f"{self.uri}/cancel_answer"
+        data = self._base_data()
+        if self.flaresolverr_url:
+            import urllib.parse
+
+            post_data = urllib.parse.urlencode(data)
+            solution = await self._flaresolverr_client.request_post(
+                url, post_data=post_data
+            )
+            text = _extract_json_from_html(solution.get("response", ""))
+            resp = _make_response(text)
+        else:
+            resp = await async_request_handler(
+                url=url, method="POST", data=data, client=self.client
+            )
         self.handle_response(resp)
         return self
 
@@ -125,10 +172,21 @@ class Akinator(_BaseAkinator):
         data["forward_answer"] = "0"
         self.win = False
         self.id_proposition = ""
+        url = f"{self.uri}/exclude"
         try:
-            resp = await async_request_handler(
-                url=f"{self.uri}/exclude", method="POST", data=data, client=self.client
-            )
+            if self.flaresolverr_url:
+                import urllib.parse
+
+                post_data = urllib.parse.urlencode(data)
+                solution = await self._flaresolverr_client.request_post(
+                    url, post_data=post_data
+                )
+                text = _extract_json_from_html(solution.get("response", ""))
+                resp = _make_response(text)
+            else:
+                resp = await async_request_handler(
+                    url=url, method="POST", data=data, client=self.client
+                )
             self.handle_response(resp)
         except RuntimeError as e:
             error_msg = str(e)
@@ -160,13 +218,24 @@ class Akinator(_BaseAkinator):
             "charac_desc": self.description_proposition,
             "pflag_photo": self.flag_photo,
         }
-        resp = await async_request_handler(
-            url=f"{self.uri}/choice",
-            method="POST",
-            data=data,
-            client=self.client,
-            follow_redirects=True,
-        )
+        url = f"{self.uri}/choice"
+        if self.flaresolverr_url:
+            import urllib.parse
+
+            post_data = urllib.parse.urlencode(data)
+            solution = await self._flaresolverr_client.request_post(
+                url, post_data=post_data
+            )
+            text = solution.get("response", "")
+            resp = _make_response(text, content_type="text/html")
+        else:
+            resp = await async_request_handler(
+                url=url,
+                method="POST",
+                data=data,
+                client=self.client,
+                follow_redirects=True,
+            )
         if resp.status_code not in range(200, 400):
             resp.raise_for_status()
         self.finished = True
@@ -192,6 +261,9 @@ class Akinator(_BaseAkinator):
         return await self.answer("no")
 
     async def close(self):
+        if self._flaresolverr_client is not None:
+            await self._flaresolverr_client.close()
+            self._flaresolverr_client = None
         if self.client is not None:
             await self.client.aclose()
             self.client = None

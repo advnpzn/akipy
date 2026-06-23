@@ -7,6 +7,7 @@ import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError
+from .flaresolverr import FlareSolverrClient, AsyncFlareSolverrClient
 
 # Compiled once at import time, shared by both subclasses
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
@@ -29,7 +30,7 @@ class _BaseAkinator:
 
     _validated_languages: set = set()
 
-    def __init__(self):
+    def __init__(self, flaresolverr_url: str | None = None):
         self.flag_photo = None
         self.photo = None
         self.pseudo = None
@@ -55,6 +56,12 @@ class _BaseAkinator:
         self.proposition_message = ""
         self.completion = "OK"
         self.client = None
+        self.flaresolverr_url = flaresolverr_url
+        self._flaresolverr_client: (
+            FlareSolverrClient | AsyncFlareSolverrClient | None
+        ) = None
+        self._flaresolverr_cookies: dict = {}
+        self._flaresolverr_user_agent: str | None = None
 
     def _set_region(self, lang: str) -> None:
         """Resolve and validate language purely from local dicts — no network call."""
