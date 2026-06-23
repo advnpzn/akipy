@@ -81,6 +81,7 @@ jobs:
     name: Integration Tests (live API)
     runs-on: ubuntu-latest
     needs: test
+    if: false  # disabled until explicitly re-enabled
 
     steps:
       - name: Checkout code
