@@ -57,6 +57,7 @@ addopts = [
     "--cov=akipy",
     "--cov-report=term-missing",
     "--cov-report=html",
+    "-m", "not integration",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
