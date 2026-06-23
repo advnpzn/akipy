@@ -78,7 +78,7 @@ class Akinator(_BaseAkinator):
         """
         self.child_mode = child_mode
         self._child_mode_str = str(child_mode).lower()
-        self._set_region(language)
+        self._set_region(language or "en")
         await self.__initialise()
         return self
 
