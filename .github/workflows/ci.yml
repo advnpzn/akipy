@@ -77,6 +77,35 @@ jobs:
         run: |
           uv run ruff format --check .
 
+  integration-test:
+    name: Integration Tests (live API)
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv add --dev pytest pytest-asyncio pytest-mock pytest-cov pytest-httpx
+
+      - name: Run integration tests against live Akinator API
+        run: |
+          uv run pytest -m integration -v --no-cov
+        timeout-minutes: 5
+
   type-check:
     name: Type Checking
     runs-on: ubuntu-latest
