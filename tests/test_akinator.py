@@ -122,18 +122,12 @@ class TestAkinatorStartGame:
             "akipy.akinator.request_handler", return_value=mock_response
         )
 
-        # Clear the language cache to ensure consistent test behavior
-        from akipy import akinator
-
-        akinator.Akinator._validated_languages.clear()
-
         aki.start_game(child_mode=True)
 
         # Check that child mode was set on the object
         assert aki.child_mode is True
-        # Verify that request was made with child_mode=true
-        # The second call is to /game with cm parameter
-        call_args = mock_request.call_args_list[1]
+        # Verify that the /game request was made with child_mode=true
+        call_args = mock_request.call_args_list[0]
         assert call_args[1]["data"]["cm"] == "true"
 
     def test_start_game_with_invalid_language(self):
