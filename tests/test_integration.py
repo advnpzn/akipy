@@ -22,6 +22,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.slow]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _play_to_win(aki: Akinator, max_steps: int = 40) -> None:
     """Answer 'yes' repeatedly until Akinator proposes a character."""
     for _ in range(max_steps):
@@ -41,8 +42,8 @@ async def _async_play_to_win(aki: AsyncAkinator, max_steps: int = 40) -> None:
 # Sync tests
 # ---------------------------------------------------------------------------
 
-class TestSyncIntegration:
 
+class TestSyncIntegration:
     def test_start_game_populates_session(self):
         """start_game must return a real question and fill all session fields."""
         with Akinator() as aki:
@@ -88,14 +89,14 @@ class TestSyncIntegration:
         """Going back from step 2 must restore the step-1 question."""
         with Akinator() as aki:
             aki.start_game("en")
-            aki.answer("yes")          # step 0 → 1
+            aki.answer("yes")  # step 0 → 1
             if aki.win:
                 pytest.skip("Won too early to test back()")
             question_at_1 = aki.question
-            aki.answer("yes")          # step 1 → 2
+            aki.answer("yes")  # step 1 → 2
             if aki.win:
                 pytest.skip("Won too early to test back()")
-            aki.back()                 # step 2 → 1
+            aki.back()  # step 2 → 1
             assert aki.question == question_at_1
             assert int(aki.step) == 1
 
@@ -112,7 +113,9 @@ class TestSyncIntegration:
         with Akinator() as aki:
             aki.start_game("en")
             url = aki.akitude_url
-            assert url.startswith("https://en.akinator.com/assets/img/akitudes_670x1096/")
+            assert url.startswith(
+                "https://en.akinator.com/assets/img/akitudes_670x1096/"
+            )
             assert url.endswith(".png")
 
     def test_full_game_reaches_win(self):
@@ -121,8 +124,12 @@ class TestSyncIntegration:
             aki.start_game("en")
             _play_to_win(aki)
 
-            assert aki.win is True, "Akinator should propose a character within 40 answers"
-            assert isinstance(aki.name_proposition, str) and len(aki.name_proposition) > 0
+            assert aki.win is True, (
+                "Akinator should propose a character within 40 answers"
+            )
+            assert (
+                isinstance(aki.name_proposition, str) and len(aki.name_proposition) > 0
+            )
             assert isinstance(aki.description_proposition, str)
             assert aki.photo is not None
 
@@ -198,8 +205,8 @@ class TestSyncIntegration:
 # Async tests
 # ---------------------------------------------------------------------------
 
-class TestAsyncIntegration:
 
+class TestAsyncIntegration:
     @pytest.mark.asyncio
     async def test_start_game_populates_session(self):
         """async start_game must return a real question and fill all session fields."""
@@ -263,8 +270,12 @@ class TestAsyncIntegration:
             await aki.start_game("en")
             await _async_play_to_win(aki)
 
-            assert aki.win is True, "Akinator should propose a character within 40 answers"
-            assert isinstance(aki.name_proposition, str) and len(aki.name_proposition) > 0
+            assert aki.win is True, (
+                "Akinator should propose a character within 40 answers"
+            )
+            assert (
+                isinstance(aki.name_proposition, str) and len(aki.name_proposition) > 0
+            )
             assert isinstance(aki.description_proposition, str)
             assert aki.photo is not None
 

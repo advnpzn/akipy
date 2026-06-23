@@ -1,4 +1,5 @@
 """Shared base class and compiled regex patterns for sync and async Akinator."""
+
 import html
 import re
 
@@ -87,7 +88,9 @@ class _BaseAkinator:
 
         proposition_m = PROPOSITION_PATTERN.search(text)
         if not proposition_m:
-            raise ValueError("Response does not contain expected data: proposition message")
+            raise ValueError(
+                "Response does not contain expected data: proposition message"
+            )
         self.proposition_message = html.unescape(proposition_m.group(1))
 
         self.progression = "0.00000"
