@@ -14,6 +14,12 @@ class TestAkinatorInitialization:
         aki = Akinator()
         assert isinstance(aki, Akinator)
 
+    def test_akinator_instance_creation_with_flaresolverr_url(self):
+        """Test that Akinator instance can be created with FlareSolverr URL"""
+        aki = Akinator(flaresolverr_url="https://flaresolverr.example.com")
+        assert isinstance(aki, Akinator)
+        assert aki.flaresolverr_url == "https://flaresolverr.example.com"
+
     def test_akinator_initial_attributes(self):
         """Test that Akinator has correct initial attributes"""
         aki = Akinator()
@@ -29,6 +35,10 @@ class TestAkinatorInitialization:
         assert aki.lang is None
         assert aki.finished is False
         assert aki.win is False
+        assert aki.flaresolverr_url is None
+        assert aki._flaresolverr_client is None
+        assert aki._flaresolverr_cookies == {}
+        assert aki._flaresolverr_user_agent is None
 
     def test_akinator_repr(self):
         """Test Akinator string representation"""

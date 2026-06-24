@@ -1,26 +1,12 @@
 """Tests for constants and dictionaries"""
 
-from akipy.dicts import HEADERS, LANG_MAP, THEME_ID, THEMES, ANSWERS, ANSWER_MAP
-
-
-class TestHeaders:
-    """Tests for HEADERS constant"""
-
-    def test_headers_contains_required_fields(self):
-        """Test that HEADERS contains all required fields"""
-        assert "Accept" in HEADERS
-        assert "Accept-Encoding" in HEADERS
-        assert "Accept-Language" in HEADERS
-        assert "User-Agent" in HEADERS
-        assert "x-requested-with" in HEADERS
-
-    def test_headers_user_agent_is_set(self):
-        """Test that User-Agent is properly set"""
-        assert "Mozilla" in HEADERS["User-Agent"]
-
-    def test_headers_x_requested_with(self):
-        """Test that x-requested-with is XMLHttpRequest"""
-        assert HEADERS["x-requested-with"] == "XMLHttpRequest"
+from akipy.dicts import (
+    LANG_MAP,
+    THEME_ID,
+    THEMES,
+    ANSWERS,
+    ANSWER_MAP,
+)
 
 
 class TestLangMap:

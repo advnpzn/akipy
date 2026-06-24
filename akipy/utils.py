@@ -1,7 +1,42 @@
 import httpx
+import ua_generator
+from ua_generator.options import Options
 
-from .dicts import ANSWER_MAP, HEADERS
+from .dicts import ANSWER_MAP
 from .exceptions import InvalidChoiceError
+
+
+def _generate_headers() -> dict:
+    options = Options()
+    options.weighted_versions = True
+    ua = ua_generator.generate(
+        device="desktop", browser=["chrome", "edge"], options=options
+    )
+    return {
+        **ua.headers.get(),
+        "x-requested-with": "XMLHttpRequest",
+        "Accept-Encoding": "gzip, deflate, br",
+    }
+
+
+def _make_response(text: str, content_type: str = "application/json") -> httpx.Response:
+    request = httpx.Request("POST", "https://en.akinator.com")
+    return httpx.Response(
+        status_code=200,
+        text=text,
+        headers={"content-type": content_type},
+        request=request,
+    )
+
+
+def _extract_json_from_html(text: str) -> str:
+    if "<html" in text.lower() and "<pre" in text.lower():
+        import re as _re
+
+        json_match = _re.search(r"<pre>(.*?)</pre>", text, _re.DOTALL)
+        if json_match:
+            return json_match.group(1)
+    return text
 
 
 def request_handler(
@@ -11,28 +46,13 @@ def request_handler(
     client: httpx.Client | None = None,
     **kwargs,
 ) -> httpx.Response:
-    """
-    Sends an HTTP request to the specified URL using the provided method and data.
-
-    Parameters:
-        url (str): The URL to send the request to.
-        method (str): The HTTP method to use (e.g., 'GET', 'POST').
-        data (dict, optional): The data to send with the request.
-        client (httpx.Client, optional): An existing HTTP client to use. If not provided, a new client will be created.
-        **kwargs: Additional keyword arguments to pass to the request.
-
-    Returns:
-        httpx.Response: The response from the server.
-
-    Raises:
-        httpx.HTTPError: If the request fails.
-    """
     client = client or httpx.Client(timeout=30.0)
+    headers = _generate_headers()
     if data:
         kwargs["data"] = data
     try:
-        response = client.request(method, url, headers=HEADERS, **kwargs)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
+        response = client.request(method, url, headers=headers, **kwargs)
+        response.raise_for_status()
         return response
     except httpx.HTTPError as e:
         raise httpx.HTTPError(f"Request failed: {e}")
@@ -45,28 +65,13 @@ async def async_request_handler(
     client: httpx.AsyncClient | None = None,
     **kwargs,
 ) -> httpx.Response:
-    """
-    Sends an asynchronous HTTP request to the specified URL using the provided method and data.
-
-    Parameters:
-        url (str): The URL to send the request to.
-        method (str): The HTTP method to use (e.g., 'GET', 'POST').
-        data (dict, optional): The data to send with the request.
-        client (httpx.AsyncClient, optional): An existing asynchronous HTTP client to use. If not provided, a new client will be created.
-        **kwargs: Additional keyword arguments to pass to the request.
-
-    Returns:
-        httpx.Response: The response from the server.
-
-    Raises:
-        httpx.HTTPError: If the request fails.
-    """
     client = client or httpx.AsyncClient(timeout=30.0)
+    headers = _generate_headers()
     if data:
         kwargs["data"] = data
     try:
-        response = await client.request(method, url, headers=HEADERS, **kwargs)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
+        response = await client.request(method, url, headers=headers, **kwargs)
+        response.raise_for_status()
         return response
     except httpx.HTTPError as e:
         raise httpx.HTTPError(f"Request failed: {e}")
