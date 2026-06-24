@@ -1,37 +1,12 @@
 """Tests for constants and dictionaries"""
 
 from akipy.dicts import (
-    HEADERS,
     LANG_MAP,
     THEME_ID,
     THEMES,
     ANSWERS,
     ANSWER_MAP,
-    USER_AGENTS,
-    ACCEPT_VALUES,
-    ACCEPT_LANGUAGE_VALUES,
-    generate_headers,
 )
-
-
-class TestHeaders:
-    """Tests for HEADERS constant"""
-
-    def test_headers_contains_required_fields(self):
-        """Test that HEADERS contains all required fields"""
-        assert "Accept" in HEADERS
-        assert "Accept-Encoding" in HEADERS
-        assert "Accept-Language" in HEADERS
-        assert "User-Agent" in HEADERS
-        assert "x-requested-with" in HEADERS
-
-    def test_headers_user_agent_is_set(self):
-        """Test that User-Agent is properly set"""
-        assert "Mozilla" in HEADERS["User-Agent"]
-
-    def test_headers_x_requested_with(self):
-        """Test that x-requested-with is XMLHttpRequest"""
-        assert HEADERS["x-requested-with"] == "XMLHttpRequest"
 
 
 class TestLangMap:
@@ -181,76 +156,3 @@ class TestAnswerMap:
         """Test that ANSWER_MAP contains all answer variations"""
         total_variations = sum(len(variations) for variations in ANSWERS.values())
         assert len(ANSWER_MAP) == total_variations
-
-
-class TestUserAgents:
-    """Tests for USER_AGENTS list"""
-
-    def test_user_agents_is_non_empty_list(self):
-        assert isinstance(USER_AGENTS, list)
-        assert len(USER_AGENTS) > 0
-
-    def test_user_agents_contain_mozilla(self):
-        for ua in USER_AGENTS:
-            assert "Mozilla" in ua
-
-
-class TestAcceptValues:
-    """Tests for ACCEPT_VALUES list"""
-
-    def test_accept_values_is_non_empty_list(self):
-        assert isinstance(ACCEPT_VALUES, list)
-        assert len(ACCEPT_VALUES) > 0
-
-    def test_accept_values_contain_text_html(self):
-        for val in ACCEPT_VALUES:
-            assert "text/html" in val
-
-
-class TestAcceptLanguageValues:
-    """Tests for ACCEPT_LANGUAGE_VALUES list"""
-
-    def test_accept_language_values_is_non_empty_list(self):
-        assert isinstance(ACCEPT_LANGUAGE_VALUES, list)
-        assert len(ACCEPT_LANGUAGE_VALUES) > 0
-
-    def test_accept_language_values_contain_en(self):
-        for val in ACCEPT_LANGUAGE_VALUES:
-            assert "en" in val
-
-
-class TestGenerateHeaders:
-    """Tests for generate_headers function"""
-
-    def test_generate_headers_returns_dict(self):
-        headers = generate_headers()
-        assert isinstance(headers, dict)
-
-    def test_generate_headers_contains_required_fields(self):
-        headers = generate_headers()
-        assert "Accept" in headers
-        assert "Accept-Encoding" in headers
-        assert "Accept-Language" in headers
-        assert "User-Agent" in headers
-        assert "x-requested-with" in headers
-
-    def test_generate_headers_user_agent_from_pool(self):
-        headers = generate_headers()
-        assert headers["User-Agent"] in USER_AGENTS
-
-    def test_generate_headers_accept_from_pool(self):
-        headers = generate_headers()
-        assert headers["Accept"] in ACCEPT_VALUES
-
-    def test_generate_headers_accept_language_from_pool(self):
-        headers = generate_headers()
-        assert headers["Accept-Language"] in ACCEPT_LANGUAGE_VALUES
-
-    def test_generate_headers_x_requested_with(self):
-        headers = generate_headers()
-        assert headers["x-requested-with"] == "XMLHttpRequest"
-
-    def test_generate_headers_varies_between_calls(self):
-        headers_list = [generate_headers() for _ in range(20)]
-        user_agents = {h["User-Agent"] for h in headers_list}
-        assert len(user_agents) > 1

@@ -221,14 +221,22 @@ class TestAsyncRequestHandler:
 
 
 class TestRequestHandlerFlareSolverrBypass:
-    """Tests for request_handler with header rotation"""
+    """Tests for request_handler with ua_generator headers"""
 
-    def test_request_handler_uses_rotated_headers(self, mocker):
+    def test_request_handler_calls_ua_generator(self, mocker):
+        mock_ua = mocker.Mock()
+        mock_ua.headers.get.return_value = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "sec-ch-ua": '"Not A(Brand";v="99", "Chromium";v="126", "Google Chrome";v="126"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+        }
+        mocker.patch("akipy.utils.ua_generator.generate", return_value=mock_ua)
+
         mock_client = mocker.Mock(spec=httpx.Client)
         success_response = mocker.Mock(spec=httpx.Response)
         success_response.status_code = 200
         success_response.raise_for_status = mocker.Mock()
-
         mock_client.request.return_value = success_response
 
         request_handler(
@@ -237,22 +245,81 @@ class TestRequestHandlerFlareSolverrBypass:
             client=mock_client,
         )
 
+        from ua_generator.options import Options
+
+        mocker.patch("akipy.utils.Options", return_value=Options())
         call_kwargs = mock_client.request.call_args[1]
-        assert "headers" in call_kwargs
-        assert "Mozilla" in call_kwargs["headers"]["User-Agent"]
-        assert call_kwargs["headers"]["x-requested-with"] == "XMLHttpRequest"
+        headers = call_kwargs["headers"]
+        assert "user-agent" in headers
+        assert "Mozilla" in headers["user-agent"]
+        assert headers["x-requested-with"] == "XMLHttpRequest"
+        assert headers["Accept-Encoding"] == "gzip, deflate, br"
+        assert "sec-ch-ua" in headers
+
+    def test_request_handler_ua_generator_called_with_desktop_chrome_edge(self, mocker):
+        mock_generate = mocker.patch("akipy.utils.ua_generator.generate")
+        mock_ua = mocker.Mock()
+        mock_ua.headers.get.return_value = {"user-agent": "Mozilla/5.0 test"}
+        mock_generate.return_value = mock_ua
+
+        mock_client = mocker.Mock(spec=httpx.Client)
+        success_response = mocker.Mock(spec=httpx.Response)
+        success_response.status_code = 200
+        success_response.raise_for_status = mocker.Mock()
+        mock_client.request.return_value = success_response
+
+        request_handler(
+            url="https://en.akinator.com",
+            method="GET",
+            client=mock_client,
+        )
+
+        mock_generate.assert_called_once()
+        call_kwargs = mock_generate.call_args[1]
+        assert call_kwargs["device"] == "desktop"
+        assert call_kwargs["browser"] == ["chrome", "edge"]
+
+    def test_request_handler_uses_weighted_versions(self, mocker):
+        mock_generate = mocker.patch("akipy.utils.ua_generator.generate")
+        mock_ua = mocker.Mock()
+        mock_ua.headers.get.return_value = {"user-agent": "Mozilla/5.0 test"}
+        mock_generate.return_value = mock_ua
+
+        mock_client = mocker.Mock(spec=httpx.Client)
+        success_response = mocker.Mock(spec=httpx.Response)
+        success_response.status_code = 200
+        success_response.raise_for_status = mocker.Mock()
+        mock_client.request.return_value = success_response
+
+        request_handler(
+            url="https://en.akinator.com",
+            method="GET",
+            client=mock_client,
+        )
+
+        mock_generate.assert_called_once()
+        options_arg = mock_generate.call_args[1]["options"]
+        assert options_arg.weighted_versions is True
 
 
 class TestAsyncRequestHandlerFlareSolverrBypass:
-    """Tests for async_request_handler with header rotation"""
+    """Tests for async_request_handler with ua_generator headers"""
 
     @pytest.mark.asyncio
-    async def test_async_request_handler_uses_rotated_headers(self, mocker):
+    async def test_async_request_handler_calls_ua_generator(self, mocker):
+        mock_ua = mocker.Mock()
+        mock_ua.headers.get.return_value = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "sec-ch-ua": '"Not A(Brand";v="99", "Chromium";v="126", "Google Chrome";v="126"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+        }
+        mocker.patch("akipy.utils.ua_generator.generate", return_value=mock_ua)
+
         mock_client = mocker.Mock(spec=httpx.AsyncClient)
         success_response = mocker.Mock(spec=httpx.Response)
         success_response.status_code = 200
         success_response.raise_for_status = mocker.Mock()
-
         mock_client.request = mocker.AsyncMock(return_value=success_response)
 
         await async_request_handler(
@@ -262,6 +329,9 @@ class TestAsyncRequestHandlerFlareSolverrBypass:
         )
 
         call_kwargs = mock_client.request.call_args[1]
-        assert "headers" in call_kwargs
-        assert "Mozilla" in call_kwargs["headers"]["User-Agent"]
-        assert call_kwargs["headers"]["x-requested-with"] == "XMLHttpRequest"
+        headers = call_kwargs["headers"]
+        assert "user-agent" in headers
+        assert "Mozilla" in headers["user-agent"]
+        assert headers["x-requested-with"] == "XMLHttpRequest"
+        assert headers["Accept-Encoding"] == "gzip, deflate, br"
+        assert "sec-ch-ua" in headers

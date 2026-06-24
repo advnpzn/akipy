@@ -1,7 +1,22 @@
 import httpx
+import ua_generator
+from ua_generator.options import Options
 
-from .dicts import ANSWER_MAP, generate_headers
+from .dicts import ANSWER_MAP
 from .exceptions import InvalidChoiceError
+
+
+def _generate_headers() -> dict:
+    options = Options()
+    options.weighted_versions = True
+    ua = ua_generator.generate(
+        device="desktop", browser=["chrome", "edge"], options=options
+    )
+    return {
+        **ua.headers.get(),
+        "x-requested-with": "XMLHttpRequest",
+        "Accept-Encoding": "gzip, deflate, br",
+    }
 
 
 def _make_response(text: str, content_type: str = "application/json") -> httpx.Response:
@@ -32,7 +47,7 @@ def request_handler(
     **kwargs,
 ) -> httpx.Response:
     client = client or httpx.Client(timeout=30.0)
-    headers = generate_headers()
+    headers = _generate_headers()
     if data:
         kwargs["data"] = data
     try:
@@ -51,7 +66,7 @@ async def async_request_handler(
     **kwargs,
 ) -> httpx.Response:
     client = client or httpx.AsyncClient(timeout=30.0)
-    headers = generate_headers()
+    headers = _generate_headers()
     if data:
         kwargs["data"] = data
     try:

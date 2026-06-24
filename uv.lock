@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12, <4.0"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -124,6 +124,7 @@ dependencies = [
     { name = "pytest-asyncio" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "ua-generator" },
 ]
 
 [package.dev-dependencies]
@@ -145,6 +146,7 @@ requires-dist = [
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = ">=0.9.3" },
+    { name = "ua-generator", specifier = ">=2.1.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -1030,6 +1032,15 @@ resolution-markers = [
 sdist = { url = "https://files.pythonhosted.org/packages/72/94/1a15dd82efb362ac84269196e94cf00f187f7ed21c242792a923cdb1c61f/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466", size = 109391, upload-time = "2025-08-25T13:49:26.313Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548", size = 44614, upload-time = "2025-08-25T13:49:24.86Z" },
+]
+
+[[package]]
+name = "ua-generator"
+version = "2.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/5c/9aece80ddd5272e8174e87370a8a92099e8008081a9fb3e2156d3ff5b60c/ua_generator-2.1.2.tar.gz", hash = "sha256:f28c8050461cce6fb209acb861a8d65bab84654842e546a6b4a4b07fb220865b", size = 29646, upload-time = "2026-06-14T23:22:19.863Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/85/07aa75d9e65fadd162bda4a6ffb22b574f4f042b4010efe6d74c9a9e91b8/ua_generator-2.1.2-py3-none-any.whl", hash = "sha256:18a52f4bebdc43963defb071cd66a2a68f84607767403d425a9fcf7542aeb727", size = 32776, upload-time = "2026-06-14T23:22:18.663Z" },
 ]
 
 [[package]]
