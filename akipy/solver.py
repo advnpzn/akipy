@@ -197,12 +197,15 @@ def solve_challenge(
     Works with FlareSolverr, TRAWL, and any other service implementing
     ``POST /v1`` with ``request.get`` / ``request.post`` commands.
     """
+    endpoint = normalize_solver_url(solver_url)
+    if not endpoint:
+        raise SolverError(f"Invalid solver URL: {solver_url!r}")
     payload = _build_solver_payload(url, method, data, max_timeout)
     owns_client = client is None
     solver_client = client or httpx.Client(timeout=max(max_timeout / 1000 + 30, 90))
     try:
         resp = solver_client.post(
-            solver_url,
+            endpoint,
             json=payload,
             headers={"Content-Type": "application/json"},
         )
@@ -221,7 +224,7 @@ def solve_challenge(
         raise
     except Exception as e:
         raise SolverError(
-            f"Failed to contact challenge solver at {solver_url}: {e}"
+            f"Failed to contact challenge solver at {endpoint}: {e}"
         ) from e
     finally:
         if owns_client:
@@ -237,6 +240,9 @@ async def async_solve_challenge(
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """Call a FlareSolverr-compatible solver asynchronously and return the solution dict."""
+    endpoint = normalize_solver_url(solver_url)
+    if not endpoint:
+        raise SolverError(f"Invalid solver URL: {solver_url!r}")
     payload = _build_solver_payload(url, method, data, max_timeout)
     owns_client = client is None
     solver_client = client or httpx.AsyncClient(
@@ -244,7 +250,7 @@ async def async_solve_challenge(
     )
     try:
         resp = await solver_client.post(
-            solver_url,
+            endpoint,
             json=payload,
             headers={"Content-Type": "application/json"},
         )
@@ -262,7 +268,7 @@ async def async_solve_challenge(
         raise
     except Exception as e:
         raise SolverError(
-            f"Failed to contact challenge solver at {solver_url}: {e}"
+            f"Failed to contact challenge solver at {endpoint}: {e}"
         ) from e
     finally:
         if owns_client:

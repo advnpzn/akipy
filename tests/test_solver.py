@@ -19,6 +19,37 @@ from akipy.solver import (
 from akipy.utils import async_request_handler, request_handler
 
 
+class TestSolveChallengeNormalizesUrl:
+    def test_posts_to_v1_endpoint(self, mocker):
+        """Bare host URLs must hit /v1 (POST to / is 405 on FlareSolverr)."""
+        mock_resp = mocker.Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "status": "ok",
+            "solution": {
+                "status": 200,
+                "response": "<html></html>",
+                "cookies": [],
+                "userAgent": "UA",
+            },
+        }
+        mock_client = mocker.Mock()
+        mock_client.post.return_value = mock_resp
+        mock_client.__enter__ = mocker.Mock(return_value=mock_client)
+        mock_client.__exit__ = mocker.Mock(return_value=False)
+        mocker.patch("akipy.solver.httpx.Client", return_value=mock_client)
+
+        from akipy.solver import solve_challenge
+
+        solve_challenge(
+            "http://127.0.0.1:8191",
+            "https://en.akinator.com/",
+            "GET",
+            max_timeout=1000,
+        )
+        assert mock_client.post.call_args[0][0] == "http://127.0.0.1:8191/v1"
+
+
 class TestBuildSolverPayload:
     def test_get_payload(self):
         p = _build_solver_payload("https://example.com", "GET", None, 60000)
