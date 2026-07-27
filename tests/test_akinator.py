@@ -298,7 +298,7 @@ class TestAkinatorBack:
     def test_back_at_first_question_raises_error(self, initialized_akinator):
         """Test that going back at first question raises error"""
         aki = initialized_akinator
-        aki.step = 1
+        aki.step = 0
 
         with pytest.raises(CantGoBackAnyFurther, match="first question"):
             aki.back()
