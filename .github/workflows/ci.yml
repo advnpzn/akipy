@@ -135,10 +135,11 @@ jobs:
           AKIPY_SOLVER_URL: http://127.0.0.1:8191
           # GitHub Actions also sets CI=true / GITHUB_ACTIONS=true automatically.
         # Smoke subset only (~10 tests). Full suite: local `pytest -m integration`.
+        # Tests share one module-level CF cookie warm-up to avoid stacking FS solves.
         run: >
           uv run pytest -m "integration and integration_core" -v --no-cov
           --override-ini="addopts=-v --strict-markers --tb=short"
-        timeout-minutes: 20
+        timeout-minutes: 30
 
   type-check:
     name: Type Checking

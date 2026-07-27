@@ -18,7 +18,8 @@ import httpx
 
 from .exceptions import CloudflareBlockedError, SolverError
 
-DEFAULT_SOLVER_TIMEOUT_MS = 60_000
+# FlareSolverr often needs >60s on cold CF challenges (CI datacenter IPs).
+DEFAULT_SOLVER_TIMEOUT_MS = 120_000
 DEFAULT_FLARESOLVERR_TIMEOUT_MS = DEFAULT_SOLVER_TIMEOUT_MS  # alias
 
 _CF_BODY_MARKERS = (

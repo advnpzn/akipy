@@ -22,15 +22,20 @@ from __future__ import annotations
 
 import os
 
+import httpx
 import pytest
 
 from akipy import Akinator
 from akipy.async_akinator import Akinator as AsyncAkinator
+from akipy.solver import apply_solver_solution, solve_challenge
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 # Marker for the CI smoke subset (see module docstring).
 core = pytest.mark.integration_core
+
+# Longer than library default so cold FlareSolverr CF solves can finish on CI.
+_SOLVER_TIMEOUT_MS = 180_000
 
 
 # ---------------------------------------------------------------------------
@@ -54,17 +59,44 @@ def solver_url() -> str:
     return url
 
 
+@pytest.fixture(scope="module")
+def cf_clearance(solver_url: str) -> dict:
+    """
+    Warm Cloudflare clearance once per module via GET on the site origin.
+
+    Avoids every test opening a new FlareSolverr browser solve (often times out
+    when runs are stacked on CI).
+    """
+    return solve_challenge(
+        solver_url=solver_url,
+        url="https://en.akinator.com/",
+        method="GET",
+        data=None,
+        max_timeout=_SOLVER_TIMEOUT_MS,
+    )
+
+
+def _apply_clearance(client: httpx.Client | httpx.AsyncClient, clearance: dict) -> None:
+    apply_solver_solution(client, clearance)
+
+
 @pytest.fixture
-def aki(solver_url: str):
-    """Sync Akinator configured with a challenge solver; closed after the test."""
-    with Akinator(solver_url=solver_url) as instance:
+def aki(solver_url: str, cf_clearance: dict):
+    """Sync Akinator with solver + pre-warmed CF cookies."""
+    with Akinator(solver_url=solver_url, solver_timeout=_SOLVER_TIMEOUT_MS) as instance:
+        instance.client = httpx.Client(timeout=30.0)
+        _apply_clearance(instance.client, cf_clearance)
         yield instance
 
 
 @pytest.fixture
-async def async_aki(solver_url: str):
-    """Async Akinator configured with a challenge solver; closed after the test."""
-    async with AsyncAkinator(solver_url=solver_url) as instance:
+async def async_aki(solver_url: str, cf_clearance: dict):
+    """Async Akinator with solver + pre-warmed CF cookies."""
+    async with AsyncAkinator(
+        solver_url=solver_url, solver_timeout=_SOLVER_TIMEOUT_MS
+    ) as instance:
+        instance.client = httpx.AsyncClient(timeout=30.0)
+        _apply_clearance(instance.client, cf_clearance)
         yield instance
 
 
