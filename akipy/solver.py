@@ -133,6 +133,10 @@ def _build_solver_payload(
         post_data = _encode_post_data(data)
         if post_data is not None:
             payload["postData"] = post_data
+            # TRAWL requires Content-Type when postData is set (FlareSolverr is looser)
+            payload["headers"] = {
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
         return payload
     raise SolverError(
         f"Challenge solver only supports GET and POST, got {method_upper!r}"
@@ -201,7 +205,16 @@ def solve_challenge(
             json=payload,
             headers={"Content-Type": "application/json"},
         )
-        resp.raise_for_status()
+        # Prefer structured solver errors (e.g. TRAWL 400 JSON) over bare HTTP status
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+            except Exception:
+                body = None
+            if isinstance(body, dict) and body.get("status") == "error":
+                message = body.get("message") or body.get("error") or resp.text
+                raise SolverError(f"Challenge solver failed: {message}")
+            resp.raise_for_status()
         return _parse_solver_response(resp.json())
     except SolverError:
         raise
@@ -234,7 +247,15 @@ async def async_solve_challenge(
             json=payload,
             headers={"Content-Type": "application/json"},
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+            except Exception:
+                body = None
+            if isinstance(body, dict) and body.get("status") == "error":
+                message = body.get("message") or body.get("error") or resp.text
+                raise SolverError(f"Challenge solver failed: {message}")
+            resp.raise_for_status()
         return _parse_solver_response(resp.json())
     except SolverError:
         raise
