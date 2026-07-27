@@ -78,10 +78,25 @@ jobs:
           uv run ruff format --check .
 
   integration-test:
-    name: Integration Tests (live API)
+    name: Integration Tests (live API + challenge solver)
     runs-on: ubuntu-latest
     needs: test
-    if: false  # disabled until explicitly re-enabled
+    # FlareSolverr on the runner (reliable CF cookie harvest for Akinator).
+    # Public remote solvers often return 403 to GitHub Actions IPs, so we do not
+    # use secrets here. For local runs, set AKIPY_SOLVER_URL yourself.
+
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+        options: >-
+          --shm-size=2gb
+          --health-cmd "curl -f http://localhost:8191/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
 
     steps:
       - name: Checkout code
@@ -102,10 +117,28 @@ jobs:
           uv sync
           uv add --dev pytest pytest-asyncio pytest-mock pytest-cov pytest-httpx
 
-      - name: Run integration tests against live Akinator API
+      - name: Wait for FlareSolverr service
         run: |
-          uv run pytest -m integration -v --no-cov
-        timeout-minutes: 5
+          for i in $(seq 1 36); do
+            if curl -sf http://127.0.0.1:8191/ >/dev/null; then
+              echo "FlareSolverr is ready"
+              exit 0
+            fi
+            echo "waiting for FlareSolverr ($i)..."
+            sleep 5
+          done
+          echo "FlareSolverr did not become ready in time"
+          exit 1
+
+      - name: Run integration smoke tests against live Akinator API
+        env:
+          AKIPY_SOLVER_URL: http://127.0.0.1:8191
+          # GitHub Actions also sets CI=true / GITHUB_ACTIONS=true automatically.
+        # Smoke subset only (~10 tests). Full suite: local `pytest -m integration`.
+        run: >
+          uv run pytest -m "integration and integration_core" -v --no-cov
+          --override-ini="addopts=-v --strict-markers --tb=short"
+        timeout-minutes: 20
 
   type-check:
     name: Type Checking

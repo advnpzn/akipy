@@ -31,7 +31,7 @@ uv run pre-commit install --hook-type pre-push
 
 ### 4. Verify setup
 ```bash
-# Run tests to ensure everything is working
+# Run unit tests (integration tests are excluded by default)
 uv run pytest
 
 # Check code quality
@@ -40,6 +40,32 @@ uv run ruff check .
 # Run type checking
 uv run mypy akipy
 ```
+
+### 5. Integration tests (optional, live API)
+
+Integration tests hit the real Akinator API and need a FlareSolverr-compatible solver for Cloudflare ([FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) or [TRAWL](https://github.com/germondai/trawl)). Do not commit the URL; pass it with an env var:
+
+```bash
+export AKIPY_SOLVER_URL="http://localhost:8191"   # FlareSolverr, TRAWL, or remote
+# legacy alias:
+# export AKIPY_FLARESOLVERR_URL="http://localhost:8191"
+
+# Full suite (local development)
+uv run pytest -m integration
+
+# Same smoke subset CI runs (~10 tests)
+uv run pytest -m "integration and integration_core"
+```
+
+**How CI is detected:** we do **not** branch inside tests on `if CI`. GitHub Actions sets `CI=true` and `GITHUB_ACTIONS=true` automatically, and the workflow command selects the smoke marker:
+
+```bash
+pytest -m "integration and integration_core"
+```
+
+Locally `CI` is unset; use `-m integration` for the full suite (including full games, choose/exclude, etc.).
+
+**GitHub Actions:** the `integration-test` job starts **FlareSolverr** as a service on the runner (`http://127.0.0.1:8191`) and runs the `integration_core` subset only.
 
 ## Development Workflow
 

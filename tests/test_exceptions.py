@@ -4,7 +4,10 @@ import pytest
 from akipy.exceptions import (
     InvalidLanguageError,
     CantGoBackAnyFurther,
+    CloudflareBlockedError,
+    FlareSolverrError,
     InvalidChoiceError,
+    SolverError,
 )
 
 
@@ -60,3 +63,24 @@ class TestInvalidChoiceError:
         """Test that InvalidChoiceError carries the message"""
         with pytest.raises(InvalidChoiceError, match="Invalid"):
             raise InvalidChoiceError("Invalid choice made")
+
+
+class TestCloudflareBlockedError:
+    def test_inherits_from_exception(self):
+        assert issubclass(CloudflareBlockedError, Exception)
+
+    def test_default_message_mentions_solver(self):
+        with pytest.raises(CloudflareBlockedError, match="solver_url"):
+            raise CloudflareBlockedError()
+
+
+class TestSolverError:
+    def test_inherits_from_exception(self):
+        assert issubclass(SolverError, Exception)
+
+    def test_can_be_raised_with_message(self):
+        with pytest.raises(SolverError, match="timeout"):
+            raise SolverError("timeout")
+
+    def test_flaresolverr_error_is_alias(self):
+        assert FlareSolverrError is SolverError

@@ -62,6 +62,7 @@ addopts = [
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
+    "integration: marks tests as integration tests (live API)",
+    "integration_core: subset of integration tests for CI (faster smoke)",
     "unit: marks tests as unit tests",
 ]

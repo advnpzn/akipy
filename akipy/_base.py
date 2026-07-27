@@ -1,12 +1,21 @@
 """Shared base class and compiled regex patterns for sync and async Akinator."""
 
+from __future__ import annotations
+
 import html
+import json
+import os
 import re
+from typing import Any
 
 import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError
+from .solver import (
+    DEFAULT_SOLVER_TIMEOUT_MS,
+    normalize_solver_url,
+)
 
 # Compiled once at import time, shared by both subclasses
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
@@ -22,6 +31,42 @@ WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
 ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
 TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
 TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
+# Chrome/FlareSolverr JSON viewer wraps payload in <pre>...</pre>
+_PRE_JSON_PATTERN = re.compile(r"<pre[^>]*>(.*?)</pre>", re.DOTALL | re.IGNORECASE)
+
+
+def parse_api_json(text: str) -> Any:
+    """
+    Parse Akinator API JSON from a response body.
+
+    Direct httpx usually returns raw JSON. FlareSolverr (and browsers) may return
+    the same payload wrapped in an HTML JSON-viewer page with a ``<pre>`` block.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty response body")
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    pre = _PRE_JSON_PATTERN.search(raw)
+    if pre:
+        inner = html.unescape(pre.group(1)).strip()
+        return json.loads(inner)
+
+    # Fallback: first top-level object/array span in the document
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = raw.find(opener)
+        end = raw.rfind(closer)
+        if start != -1 and end > start:
+            try:
+                return json.loads(raw[start : end + 1])
+            except json.JSONDecodeError:
+                continue
+
+    raise ValueError("No JSON object found in response body")
 
 
 class _BaseAkinator:
@@ -29,35 +74,54 @@ class _BaseAkinator:
 
     _validated_languages: set = set()
 
-    def __init__(self):
-        self.flag_photo = None
-        self.photo = None
-        self.pseudo = None
-        self.uri = None
-        self.theme = None
-        self.session = None
-        self.signature = None
-        self.identifiant = None
+    def __init__(
+        self,
+        solver_url: str | None = None,
+        solver_timeout: int = DEFAULT_SOLVER_TIMEOUT_MS,
+    ) -> None:
+        self.flag_photo: str | int | None = None
+        self.photo: str | None = None
+        self.pseudo: str | None = None
+        self.uri: str | None = None
+        self.theme: int | None = None
+        self.session: str | None = None
+        self.signature: str | None = None
+        self.identifiant: str | None = None
         self.child_mode: bool = False
         self._child_mode_str: str = "false"
-        self.lang = None
-        self.available_themes = []
-        self.question = None
-        self.progression = None
-        self.step = None
-        self.akitude = None
-        self.step_last_proposition = ""
-        self.finished = False
-        self.win = False
-        self.id_proposition = ""
-        self.name_proposition = ""
-        self.description_proposition = ""
-        self.proposition_message = ""
-        self.completion = "OK"
-        self.client = None
+        self.lang: str | None = None
+        self.available_themes: list[str] = []
+        self.question: str | None = None
+        self.progression: str | None = None
+        self.step: str | None = None
+        self.akitude: str | None = None
+        self.step_last_proposition: str = ""
+        self.finished: bool = False
+        self.win: bool = False
+        self.id_proposition: str = ""
+        self.name_proposition: str = ""
+        self.description_proposition: str = ""
+        self.proposition_message: str = ""
+        self.completion: str = "OK"
+        # Sync and async subclasses use different httpx client types
+        self.client: Any = None
+        # Optional challenge solver (FlareSolverr / TRAWL / compatible):
+        # constructor arg wins; else AKIPY_SOLVER_URL or AKIPY_FLARESOLVERR_URL env
+        raw_solver = (
+            solver_url
+            if solver_url is not None
+            else os.environ.get("AKIPY_SOLVER_URL")
+            or os.environ.get("AKIPY_FLARESOLVERR_URL")
+        )
+        self.solver_url: str | None = normalize_solver_url(raw_solver)
+        self.solver_timeout: int = solver_timeout
+
+        # Aliases for older parameter names
+        self.flaresolverr_url = self.solver_url
+        self.flaresolverr_timeout = self.solver_timeout
 
     def _set_region(self, lang: str) -> None:
-        """Resolve and validate language purely from local dicts — no network call."""
+        """Resolve and validate language from local dicts (no network call)."""
         if len(lang) > 2:
             lang = LANG_MAP.get(lang, lang)
         else:
@@ -116,7 +180,7 @@ class _BaseAkinator:
             self.question = html.unescape(resp.get("question", ""))
         elif action == "win":
             self.win = True
-            self.step_last_proposition = self.step
+            self.step_last_proposition = self.step or ""
             self.id_proposition = resp.get("id_proposition", "")
             self.name_proposition = html.unescape(resp.get("name_proposition", ""))
             self.description_proposition = html.unescape(
@@ -134,27 +198,34 @@ class _BaseAkinator:
     def handle_response(self, resp: httpx.Response) -> None:
         """Parse an API response and update game state. Used by both sync and async paths."""
         resp.raise_for_status()
+        raw_text = getattr(resp, "text", "")
+        text = raw_text if isinstance(raw_text, str) else ""
 
-        content_type = getattr(resp, "headers", {}).get("content-type", "").lower()
-        if "text/html" in content_type:
-            text = resp.text
-            if "<!DOCTYPE html>" in text or "<html" in text:
-                raise RuntimeError(
-                    f"Server returned HTML instead of JSON. This typically means the session has expired "
-                    f"or there was a server error. Response preview: {text[:500]}"
-                )
-
+        data: Any
         try:
-            data = resp.json()
+            if text.strip():
+                data = parse_api_json(text)
+            else:
+                # No usable body string: unit-test mocks often only set .json()
+                data = resp.json()
         except Exception as e:
-            text = resp.text
             if "A technical problem has occurred." in text:
                 raise RuntimeError(
                     f"A technical problem has occurred. Response: {text[:500]}"
-                )
+                ) from e
+            content_type = getattr(resp, "headers", {}).get("content-type", "")
+            if not isinstance(content_type, str):
+                content_type = ""
+            content_type = content_type.lower()
+            if "text/html" in content_type or "<html" in text.lower():
+                raise RuntimeError(
+                    f"Server returned HTML instead of JSON. This typically means the session has expired "
+                    f"or there was a server error. Response preview: {text[:500]}"
+                ) from e
             raise RuntimeError(
-                f"Failed to parse JSON response. Error: {e}. Response (first 500 chars): {text[:500]}"
-            )
+                f"Failed to parse JSON response. Error: {e}. "
+                f"Response (first 500 chars): {text[:500]}"
+            ) from e
 
         if isinstance(data, list) and len(data) == 0:
             raise RuntimeError("No more characters available to propose")
@@ -192,7 +263,7 @@ class _BaseAkinator:
 
     @property
     def confidence(self) -> float:
-        return float(self.progression) / 100
+        return float(self.progression or 0) / 100
 
     @property
     def akitude_url(self) -> str:
