@@ -10,10 +10,24 @@ This directory contains example scripts demonstrating different ways to use the 
   - Shows basic game flow
   - Manual resource management
 
+### Basic Mode Change Usage
+
+- **`basic_mode_change.py`** - Simple synchronous usage without context manager
+  - Shows basic game flow
+  - Shows changing gamemodes
+  - Manual resource management
+
 ### Async Usage
 
 - **`async_usage.py`** - Simple asynchronous usage without context manager
   - Demonstrates async/await syntax
+  - Manual resource management
+
+### Async Mode Change Usage
+
+- **`async_mode_change.py`** - Simple asynchronous usage without context manager
+  - Shows basic game flow
+  - Shows changing gamemodes
   - Manual resource management
 
 ### Context Manager Usage (Recommended)

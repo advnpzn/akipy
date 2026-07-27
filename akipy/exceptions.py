@@ -14,3 +14,9 @@ class InvalidChoiceError(ValueError):
     """Raise when the user input is not a valid answer for the current question"""
 
     pass
+
+
+class InvalidThemeError(ValueError):
+    """Raise when the user input theme is not a valid theme for the selected language"""
+
+    pass

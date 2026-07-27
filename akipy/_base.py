@@ -6,7 +6,7 @@ import re
 import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
-from .exceptions import InvalidLanguageError
+from .exceptions import InvalidLanguageError, InvalidThemeError
 
 # Compiled once at import time, shared by both subclasses
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
@@ -56,7 +56,7 @@ class _BaseAkinator:
         self.completion = "OK"
         self.client = None
 
-    def _set_region(self, lang: str) -> None:
+    def _set_region(self, lang: str, mode: str) -> None:
         """Resolve and validate language purely from local dicts — no network call."""
         if len(lang) > 2:
             lang = LANG_MAP.get(lang, lang)
@@ -66,7 +66,14 @@ class _BaseAkinator:
         self.uri = f"https://{lang}.akinator.com"
         self.lang = lang
         self.available_themes = THEMES.get(lang, [])
-        self.theme = THEME_ID.get(self.available_themes[0], None)
+
+        if mode not in self.available_themes:
+            raise InvalidThemeError(
+                f'Mode "{mode}" is not available in the selected language'
+            )
+
+        self.selected_theme = self.available_themes.index(mode)
+        self.theme = THEME_ID.get(self.available_themes[self.selected_theme], None)
 
     def _parse_init_response(self, text: str) -> None:
         """Extract session credentials and first question from the /game HTML response."""

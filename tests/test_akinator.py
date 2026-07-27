@@ -130,6 +130,46 @@ class TestAkinatorStartGame:
         call_args = mock_request.call_args_list[0]
         assert call_args[1]["data"]["cm"] == "true"
 
+    def test_start_game_with_default_mode(
+        self, mocker, mock_game_initialization_response
+    ):
+        """Test starting game with default theme"""
+        aki = Akinator()
+
+        mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_game_initialization_response
+        mock_response.raise_for_status = mocker.Mock()
+
+        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+
+        result = aki.start_game()
+
+        assert result == aki
+        assert aki.lang == "en"
+        assert aki.uri == "https://en.akinator.com"
+        assert aki.step == "0"
+        assert aki.theme == 1
+
+    def test_start_game_with_specific_language_and_mode(
+        self, mocker, mock_game_initialization_response
+    ):
+        """Test starting game with a specific theme and language"""
+        aki = Akinator()
+
+        mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_game_initialization_response
+        mock_response.raise_for_status = mocker.Mock()
+
+        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+
+        aki.start_game(language="french", game_mode="o")
+
+        assert aki.lang == "fr"
+        assert aki.uri == "https://fr.akinator.com"
+        assert aki.theme == 2
+
     def test_start_game_with_invalid_language(self):
         """Test that invalid language raises InvalidLanguageError"""
         # Simulate what happens in __get_region when an invalid language is used

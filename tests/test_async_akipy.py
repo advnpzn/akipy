@@ -142,6 +142,47 @@ class TestAsyncAkinatorStartGame:
         assert game_call is not None, "Could not find /game call with cm parameter"
         assert game_call[1]["data"]["cm"] == "true"
 
+    @pytest.mark.asyncio
+    async def test_start_game_with_default_mode(
+        self, mocker, mock_game_initialization_response
+    ):
+        """Test starting game with default theme"""
+        aki = AsyncAkinator()
+
+        mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_game_initialization_response
+        mock_response.raise_for_status = mocker.Mock()
+
+        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+
+        await aki.start_game()
+
+        assert aki.lang == "en"
+        assert aki.uri == "https://en.akinator.com"
+        assert aki.step == "0"
+        assert aki.theme == 1
+
+    @pytest.mark.asyncio
+    async def test_start_game_with_specific_language_and_mode(
+        self, mocker, mock_game_initialization_response
+    ):
+        """Test starting game with a specific theme and language"""
+        aki = AsyncAkinator()
+
+        mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_game_initialization_response
+        mock_response.raise_for_status = mocker.Mock()
+
+        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+
+        await aki.start_game(language="french", game_mode="o")
+
+        assert aki.lang == "fr"
+        assert aki.uri == "https://fr.akinator.com"
+        assert aki.theme == 2
+
 
 class TestAsyncAkinatorAnswer:
     """Tests for async answer method"""
