@@ -52,7 +52,7 @@ export AKIPY_SOLVER_URL="http://localhost:8191"   # FlareSolverr, TRAWL, or remo
 uv run pytest -m integration
 ```
 
-**GitHub Actions:** the `integration-test` job always starts **FlareSolverr as a service** on the runner (`http://127.0.0.1:8191`). It does not use a remote solver secret, because public hosts behind Cloudflare/WAF often return 403 to GitHub Actions IPs.
+**GitHub Actions:** the `integration-test` job starts **TRAWL** as a service on the runner (`http://127.0.0.1:8191`, FlareSolverr v2-compatible, faster CF solves). It does not use a remote solver secret, because public hosts behind Cloudflare/WAF often return 403 to GitHub Actions IPs.
 
 ## Development Workflow
 
