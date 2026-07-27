@@ -27,7 +27,7 @@ import pytest
 
 from akipy import Akinator
 from akipy.async_akinator import Akinator as AsyncAkinator
-from akipy.solver import apply_solver_solution, solve_challenge
+from akipy.solver import apply_solver_solution, normalize_solver_url, solve_challenge
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
@@ -56,7 +56,10 @@ def solver_url() -> str:
             "Integration tests need a FlareSolverr-compatible solver "
             "(FlareSolverr, TRAWL, etc.). Set the env var or GitHub secret."
         )
-    return url
+    normalized = normalize_solver_url(url)
+    if not normalized:
+        pytest.skip(f"Invalid solver URL: {url!r}")
+    return normalized
 
 
 @pytest.fixture(scope="module")
