@@ -81,9 +81,22 @@ jobs:
     name: Integration Tests (live API + challenge solver)
     runs-on: ubuntu-latest
     needs: test
-    # Requires secret AKIPY_SOLVER_URL (preferred) or AKIPY_FLARESOLVERR_URL.
-    # Accepts any FlareSolverr v2-compatible service (FlareSolverr, TRAWL, etc.).
-    # Fork PRs without secrets skip (see step below).
+    # Always use FlareSolverr as a service on the runner. Public remote solvers
+    # (e.g. behind Cloudflare) often return 403 to GitHub Actions IPs, so secrets
+    # are not used here. For local runs, set AKIPY_SOLVER_URL yourself.
+
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+        options: >-
+          --shm-size=2gb
+          --health-cmd "curl -f http://localhost:8191/ || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
 
     steps:
       - name: Checkout code
@@ -104,20 +117,23 @@ jobs:
           uv sync
           uv add --dev pytest pytest-asyncio pytest-mock pytest-cov pytest-httpx
 
+      - name: Wait for FlareSolverr service
+        run: |
+          for i in $(seq 1 36); do
+            if curl -sf http://127.0.0.1:8191/ >/dev/null; then
+              echo "FlareSolverr is ready"
+              exit 0
+            fi
+            echo "waiting for FlareSolverr ($i)..."
+            sleep 5
+          done
+          echo "FlareSolverr did not become ready in time"
+          exit 1
+
       - name: Run integration tests against live Akinator API
         env:
-          # From GitHub Actions secrets; do not hardcode the URL in the repo.
-          AKIPY_SOLVER_URL: ${{ secrets.AKIPY_SOLVER_URL }}
-          AKIPY_FLARESOLVERR_URL: ${{ secrets.AKIPY_FLARESOLVERR_URL }}
-        run: |
-          SOLVER_URL="${AKIPY_SOLVER_URL:-$AKIPY_FLARESOLVERR_URL}"
-          if [ -z "$SOLVER_URL" ]; then
-            echo "AKIPY_SOLVER_URL (or AKIPY_FLARESOLVERR_URL) secret is not set; skipping integration tests."
-            echo "Add the secret in repo Settings → Secrets and variables → Actions."
-            exit 0
-          fi
-          export AKIPY_SOLVER_URL="$SOLVER_URL"
-          uv run pytest -m integration -v --no-cov
+          AKIPY_SOLVER_URL: http://127.0.0.1:8191
+        run: uv run pytest -m integration -v --no-cov
         timeout-minutes: 20
 
   type-check:

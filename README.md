@@ -123,6 +123,8 @@ export AKIPY_SOLVER_URL="http://localhost:8191"
 
 `AKIPY_FLARESOLVERR_URL` and `flaresolverr_url=` still work as aliases.
 
+CI integration tests start FlareSolverr as a service on the runner (`http://127.0.0.1:8191`). Remote public solvers are often unreachable from GitHub Actions (403 from edge WAF).
+
 ### Errors
 
 | Exception | When |
