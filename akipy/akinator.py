@@ -24,6 +24,7 @@ SOFTWARE.
 """
 
 import html
+import time
 
 try:
     import httpx
@@ -90,24 +91,39 @@ class Akinator(_BaseAkinator):
         data = {"sid": self.theme, "cm": self._child_mode_str}
         if self.client is None:
             self.client = httpx.Client(timeout=30.0)
-        try:
-            req = request_handler(
-                url=url,
-                method="POST",
-                data=data,
-                client=self.client,
-                solver_url=self.solver_url,
-                solver_timeout=self.solver_timeout,
-            )
-            self._parse_init_response(req.text)
-        except (CloudflareBlockedError, SolverError):
-            raise
-        except httpx.HTTPError as e:
-            raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
-        except ValueError as e:
-            raise ValueError(f"Invalid response data: {e}")
-        except Exception as e:
-            raise RuntimeError(f"An unexpected error occurred: {e}")
+
+        # Retry: CF/FlareSolverr occasionally returns HTML without session fields
+        last_value_error: ValueError | None = None
+        for attempt in range(3):
+            try:
+                req = request_handler(
+                    url=url,
+                    method="POST",
+                    data=data,
+                    client=self.client,
+                    solver_url=self.solver_url,
+                    solver_timeout=self.solver_timeout,
+                )
+                self._parse_init_response(req.text)
+                return
+            except (CloudflareBlockedError, SolverError):
+                raise
+            except httpx.HTTPError as e:
+                raise httpx.HTTPStatusError(
+                    f"Failed to connect to Akinator server: {e}"
+                )
+            except ValueError as e:
+                last_value_error = e
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise ValueError(f"Invalid response data: {e}") from e
+            except Exception as e:
+                raise RuntimeError(f"An unexpected error occurred: {e}") from e
+        if last_value_error is not None:
+            raise ValueError(
+                f"Invalid response data: {last_value_error}"
+            ) from last_value_error
 
     def start_game(self, language: str | None = "en", child_mode: bool = False):
         """
