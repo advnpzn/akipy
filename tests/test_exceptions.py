@@ -7,7 +7,6 @@ from akipy.exceptions import (
     CloudflareBlockedError,
     FlareSolverrError,
     InvalidChoiceError,
-    InvalidThemeError,
     SolverError,
     InvalidThemeError,
 )
@@ -66,6 +65,7 @@ class TestInvalidChoiceError:
         with pytest.raises(InvalidChoiceError, match="Invalid"):
             raise InvalidChoiceError("Invalid choice made")
 
+
 class TestInvalidThemeError:
     """Tests for InvalidChoiceError exception"""
 
@@ -83,6 +83,7 @@ class TestInvalidThemeError:
         with pytest.raises(InvalidChoiceError, match="Invalid"):
             raise InvalidChoiceError("Invalid theme chosen for language")
 
+
 class TestCloudflareBlockedError:
     def test_inherits_from_exception(self):
         assert issubclass(CloudflareBlockedError, Exception)
@@ -90,6 +91,7 @@ class TestCloudflareBlockedError:
     def test_default_message_mentions_solver(self):
         with pytest.raises(CloudflareBlockedError, match="solver_url"):
             raise CloudflareBlockedError()
+
 
 class TestSolverError:
     def test_inherits_from_exception(self):
@@ -101,20 +103,3 @@ class TestSolverError:
 
     def test_flaresolverr_error_is_alias(self):
         assert FlareSolverrError is SolverError
-
-class TestInvalidThemeError:
-    """Tests for InvalidChoiceError exception"""
-
-    def test_invalid_theme_error_inherits_from_value_error(self):
-        """Test that InvalidChoiceError inherits from ValueError"""
-        assert issubclass(InvalidThemeError, ValueError)
-
-    def test_invalid_theme_error_can_be_raised(self):
-        """Test that InvalidChoiceError can be raised"""
-        with pytest.raises(InvalidThemeError):
-            raise InvalidThemeError("Invalid theme for language")
-
-    def test_invalid_theme_error_message(self):
-        """Test that InvalidChoiceError carries the message"""
-        with pytest.raises(InvalidChoiceError, match="Invalid"):
-            raise InvalidChoiceError("Invalid theme chosen for language")

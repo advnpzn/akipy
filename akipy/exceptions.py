@@ -15,10 +15,12 @@ class InvalidChoiceError(ValueError):
 
     pass
 
+
 class InvalidThemeError(ValueError):
     """Raise when the user input theme is not a valid theme for the selected language"""
 
     pass
+
 
 class CloudflareBlockedError(Exception):
     """Raise when Cloudflare blocks the request and no challenge solver is configured."""
@@ -34,10 +36,11 @@ class CloudflareBlockedError(Exception):
     ):
         super().__init__(message)
 
+
 class SolverError(Exception):
     """Raise when a challenge solver (FlareSolverr, TRAWL, etc.) fails or returns non-ok."""
 
     pass
 
-FlareSolverrError = SolverError  # alias
 
+FlareSolverrError = SolverError  # alias
