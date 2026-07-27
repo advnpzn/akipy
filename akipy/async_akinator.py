@@ -94,9 +94,9 @@ class Akinator(_BaseAkinator):
         if self.client is None:
             self.client = httpx.AsyncClient(timeout=30.0)
 
-        # Retry: CF/FlareSolverr occasionally returns HTML without session fields
+        # One quick retry only — extra attempts stack multi-minute FlareSolverr timeouts
         last_value_error: ValueError | None = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 req = await async_request_handler(
                     url=url,
@@ -116,8 +116,8 @@ class Akinator(_BaseAkinator):
                 )
             except ValueError as e:
                 last_value_error = e
-                if attempt < 2:
-                    await asyncio.sleep(1.5 * (attempt + 1))
+                if attempt < 1:
+                    await asyncio.sleep(2.0)
                     continue
                 raise ValueError(f"Invalid response data: {e}") from e
             except Exception as e:

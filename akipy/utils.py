@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import httpx
 
 from .dicts import ANSWER_MAP, HEADERS
@@ -10,6 +12,12 @@ from .solver import (
     response_from_solution,
     solve_challenge,
 )
+
+
+def _site_origin(url: str) -> str:
+    """Scheme + host root used for Cloudflare cookie harvest."""
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}/"
 
 
 def _merge_headers(client: httpx.Client | httpx.AsyncClient | None) -> dict[str, str]:
@@ -85,6 +93,25 @@ def _handle_cloudflare_sync(
     if not solver_url:
         raise CloudflareBlockedError()
 
+    # 1) Prefer GET on site origin — FlareSolverr clears CF more reliably on GET;
+    #    cookies + UA then allow the original POST/GET over plain httpx.
+    origin = _site_origin(url)
+    try:
+        harvest = solve_challenge(
+            solver_url=solver_url,
+            url=origin,
+            method="GET",
+            data=None,
+            max_timeout=solver_timeout,
+        )
+        apply_solver_solution(client, harvest)
+        retry = _direct_request(client, method, url, **request_kwargs)
+        if not is_cloudflare_challenge(retry):
+            return retry
+    except SolverError:
+        pass
+
+    # 2) Full original request through the solver
     solution = solve_challenge(
         solver_url=solver_url,
         url=url,
@@ -118,6 +145,22 @@ async def _handle_cloudflare_async(
 
     if not solver_url:
         raise CloudflareBlockedError()
+
+    origin = _site_origin(url)
+    try:
+        harvest = await async_solve_challenge(
+            solver_url=solver_url,
+            url=origin,
+            method="GET",
+            data=None,
+            max_timeout=solver_timeout,
+        )
+        apply_solver_solution(client, harvest)
+        retry = await _async_direct_request(client, method, url, **request_kwargs)
+        if not is_cloudflare_challenge(retry):
+            return retry
+    except SolverError:
+        pass
 
     solution = await async_solve_challenge(
         solver_url=solver_url,
