@@ -10,12 +10,34 @@ from akipy.async_akinator import Akinator as AsyncAkinator
 from akipy.exceptions import CloudflareBlockedError, FlareSolverrError, SolverError
 from akipy._base import parse_api_json
 from akipy.solver import (
+    _build_solver_payload,
     apply_solver_solution,
     is_cloudflare_challenge,
     normalize_solver_url,
     response_from_solution,
 )
 from akipy.utils import async_request_handler, request_handler
+
+
+class TestBuildSolverPayload:
+    def test_get_payload(self):
+        p = _build_solver_payload("https://example.com", "GET", None, 60000)
+        assert p == {
+            "cmd": "request.get",
+            "url": "https://example.com",
+            "maxTimeout": 60000,
+        }
+
+    def test_post_includes_content_type_for_trawl(self):
+        p = _build_solver_payload(
+            "https://en.akinator.com/game",
+            "POST",
+            {"sid": 1, "cm": "false"},
+            60000,
+        )
+        assert p["cmd"] == "request.post"
+        assert p["postData"] == "sid=1&cm=false"
+        assert p["headers"]["Content-Type"] == "application/x-www-form-urlencoded"
 
 
 class TestParseApiJson:
