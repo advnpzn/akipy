@@ -498,17 +498,22 @@ class TestAkinatorHandleResponse:
 
     def test_handle_response_with_answer(self, initialized_akinator, mocker):
         """Test handle_response updates state correctly"""
+        import json
+
         aki = initialized_akinator
 
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "completion": "OK",
-            "akitude": "concentre.png",
-            "step": "5",
-            "progression": "45.5",
-            "question": "Is your character from anime?",
-        }
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.text = json.dumps(
+            {
+                "completion": "OK",
+                "akitude": "concentre.png",
+                "step": "5",
+                "progression": "45.5",
+                "question": "Is your character from anime?",
+            }
+        )
         mock_response.raise_for_status = mocker.Mock()
 
         aki.handle_response(mock_response)
@@ -523,11 +528,14 @@ class TestAkinatorHandleResponse:
         self, initialized_akinator, mocker, mock_win_response_json
     ):
         """Test handle_response with win proposition"""
+        import json
+
         aki = initialized_akinator
 
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
-        mock_response.json.return_value = mock_win_response_json
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.text = json.dumps(mock_win_response_json)
         mock_response.raise_for_status = mocker.Mock()
 
         aki.handle_response(mock_response)
@@ -539,11 +547,14 @@ class TestAkinatorHandleResponse:
 
     def test_handle_response_with_timeout(self, initialized_akinator, mocker):
         """Test handle_response with timeout"""
+        import json
+
         aki = initialized_akinator
 
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
-        mock_response.json.return_value = {"completion": "KO - TIMEOUT"}
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.text = json.dumps({"completion": "KO - TIMEOUT"})
         mock_response.raise_for_status = mocker.Mock()
 
         with pytest.raises(TimeoutError, match="session has timed out"):
@@ -555,9 +566,36 @@ class TestAkinatorHandleResponse:
 
         mock_response = mocker.Mock(spec=httpx.Response)
         mock_response.status_code = 200
-        mock_response.json.side_effect = Exception("Parse error")
+        mock_response.headers = {"content-type": "text/html"}
         mock_response.text = "A technical problem has occurred."
         mock_response.raise_for_status = mocker.Mock()
 
         with pytest.raises(RuntimeError, match="technical problem"):
             aki.handle_response(mock_response)
+
+    def test_handle_response_with_browser_wrapped_json(
+        self, initialized_akinator, mocker
+    ):
+        """FlareSolverr/browser may wrap JSON in an HTML <pre> viewer page."""
+        aki = initialized_akinator
+
+        payload = (
+            '{"completion":"OK","step":"1","progression":"12.9",'
+            '"question":"Is your character animated?","akitude":"concentre.png"}'
+        )
+        mock_response = mocker.Mock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "text/html"}
+        mock_response.text = (
+            '<html><head><meta name="color-scheme" content="light dark"></head>'
+            f"<body><pre>{payload}</pre>"
+            '<div class="json-formatter-container"></div></body></html>'
+        )
+        mock_response.raise_for_status = mocker.Mock()
+
+        aki.handle_response(mock_response)
+
+        assert aki.step == "1"
+        assert aki.progression == "12.9"
+        assert aki.question == "Is your character animated?"
+        assert aki.akitude == "concentre.png"

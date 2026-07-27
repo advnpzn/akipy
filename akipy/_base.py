@@ -1,6 +1,9 @@
 """Shared base class and compiled regex patterns for sync and async Akinator."""
 
+from __future__ import annotations
+
 import html
+import json
 import os
 import re
 from typing import Any
@@ -28,6 +31,42 @@ WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
 ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
 TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
 TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
+# Chrome/FlareSolverr JSON viewer wraps payload in <pre>...</pre>
+_PRE_JSON_PATTERN = re.compile(r"<pre[^>]*>(.*?)</pre>", re.DOTALL | re.IGNORECASE)
+
+
+def parse_api_json(text: str) -> Any:
+    """
+    Parse Akinator API JSON from a response body.
+
+    Direct httpx usually returns raw JSON. FlareSolverr (and browsers) may return
+    the same payload wrapped in an HTML JSON-viewer page with a ``<pre>`` block.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty response body")
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    pre = _PRE_JSON_PATTERN.search(raw)
+    if pre:
+        inner = html.unescape(pre.group(1)).strip()
+        return json.loads(inner)
+
+    # Fallback: first top-level object/array span in the document
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = raw.find(opener)
+        end = raw.rfind(closer)
+        if start != -1 and end > start:
+            try:
+                return json.loads(raw[start : end + 1])
+            except json.JSONDecodeError:
+                continue
+
+    raise ValueError("No JSON object found in response body")
 
 
 class _BaseAkinator:
@@ -159,27 +198,34 @@ class _BaseAkinator:
     def handle_response(self, resp: httpx.Response) -> None:
         """Parse an API response and update game state. Used by both sync and async paths."""
         resp.raise_for_status()
+        raw_text = getattr(resp, "text", "")
+        text = raw_text if isinstance(raw_text, str) else ""
 
-        content_type = getattr(resp, "headers", {}).get("content-type", "").lower()
-        if "text/html" in content_type:
-            text = resp.text
-            if "<!DOCTYPE html>" in text or "<html" in text:
-                raise RuntimeError(
-                    f"Server returned HTML instead of JSON. This typically means the session has expired "
-                    f"or there was a server error. Response preview: {text[:500]}"
-                )
-
+        data: Any
         try:
-            data = resp.json()
+            if text.strip():
+                data = parse_api_json(text)
+            else:
+                # No usable body string: unit-test mocks often only set .json()
+                data = resp.json()
         except Exception as e:
-            text = resp.text
             if "A technical problem has occurred." in text:
                 raise RuntimeError(
                     f"A technical problem has occurred. Response: {text[:500]}"
-                )
+                ) from e
+            content_type = getattr(resp, "headers", {}).get("content-type", "")
+            if not isinstance(content_type, str):
+                content_type = ""
+            content_type = content_type.lower()
+            if "text/html" in content_type or "<html" in text.lower():
+                raise RuntimeError(
+                    f"Server returned HTML instead of JSON. This typically means the session has expired "
+                    f"or there was a server error. Response preview: {text[:500]}"
+                ) from e
             raise RuntimeError(
-                f"Failed to parse JSON response. Error: {e}. Response (first 500 chars): {text[:500]}"
-            )
+                f"Failed to parse JSON response. Error: {e}. "
+                f"Response (first 500 chars): {text[:500]}"
+            ) from e
 
         if isinstance(data, list) and len(data) == 0:
             raise RuntimeError("No more characters available to propose")

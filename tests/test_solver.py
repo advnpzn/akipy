@@ -8,6 +8,7 @@ import pytest
 from akipy import Akinator
 from akipy.async_akinator import Akinator as AsyncAkinator
 from akipy.exceptions import CloudflareBlockedError, FlareSolverrError, SolverError
+from akipy._base import parse_api_json
 from akipy.solver import (
     apply_solver_solution,
     is_cloudflare_challenge,
@@ -15,6 +16,27 @@ from akipy.solver import (
     response_from_solution,
 )
 from akipy.utils import async_request_handler, request_handler
+
+
+class TestParseApiJson:
+    def test_raw_json(self):
+        data = parse_api_json('{"completion":"OK","step":"1"}')
+        assert data["completion"] == "OK"
+        assert data["step"] == "1"
+
+    def test_browser_pre_wrapper(self):
+        body = (
+            '<html><head><meta name="color-scheme" content="light dark"></head>'
+            '<body><pre>{"completion":"OK","step":"1","question":"Hi?"}</pre>'
+            '<div class="json-formatter-container"></div></body></html>'
+        )
+        data = parse_api_json(body)
+        assert data["question"] == "Hi?"
+        assert data["step"] == "1"
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError, match="Empty"):
+            parse_api_json("   ")
 
 
 class TestNormalizeSolverUrl:
