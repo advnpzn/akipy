@@ -1,19 +1,21 @@
 """
 Integration tests that hit the real Akinator API.
 
-These tests require internet connectivity and a FlareSolverr-compatible
-challenge solver (FlareSolverr, TRAWL, etc.) so Cloudflare challenges can
-be solved in CI and restricted environments.
+These tests need internet and a FlareSolverr-compatible solver
+(FlareSolverr, TRAWL, etc.) when Cloudflare blocks direct access.
 
-Set the solver URL via environment variable (never commit the URL):
+Local (full suite)::
 
-    export AKIPY_SOLVER_URL=https://your-solver.example
-    # or legacy:
-    export AKIPY_FLARESOLVERR_URL=https://your-solver.example
+    export AKIPY_SOLVER_URL=http://localhost:8191
     pytest -m integration
 
-In GitHub Actions the same variables are injected from repository secrets
-``AKIPY_SOLVER_URL`` (preferred) or ``AKIPY_FLARESOLVERR_URL``.
+CI (smoke subset only). GitHub Actions sets ``CI=true`` and
+``GITHUB_ACTIONS=true`` automatically. The workflow runs::
+
+    pytest -m "integration and integration_core"
+
+Tests marked ``integration_core`` (~10) cover start/answer/back/lang/async
+smoke without multi-step full games.
 """
 
 from __future__ import annotations
@@ -26,6 +28,9 @@ from akipy import Akinator
 from akipy.async_akinator import Akinator as AsyncAkinator
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
+# Marker for the CI smoke subset (see module docstring).
+core = pytest.mark.integration_core
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +94,7 @@ async def _async_play_to_win(aki: AsyncAkinator, max_steps: int = 40) -> None:
 
 
 class TestSyncIntegration:
+    @core
     def test_start_game_populates_session(self, aki: Akinator):
         """start_game must return a real question and fill all session fields."""
         aki.start_game("en")
@@ -105,6 +111,7 @@ class TestSyncIntegration:
         assert aki.win is False
         assert aki.solver_url is not None
 
+    @core
     def test_answer_advances_step(self, aki: Akinator):
         """Answering a question must move to the next step (or trigger a win)."""
         aki.start_game("en")
@@ -129,6 +136,7 @@ class TestSyncIntegration:
                     break
                 aki.answer(ans)
 
+    @core
     def test_back_returns_to_previous_question(self, aki: Akinator):
         """Going back from step 2 must restore the step-1 question."""
         aki.start_game("en")
@@ -143,6 +151,7 @@ class TestSyncIntegration:
         assert aki.question == question_at_1
         assert int(aki.step) == 1
 
+    @core
     def test_confidence_is_valid_float(self, aki: Akinator):
         """confidence property must stay in [0, 1] throughout the game."""
         aki.start_game("en")
@@ -208,6 +217,7 @@ class TestSyncIntegration:
         result = str(aki)
         assert aki.name_proposition in result
 
+    @core
     def test_french_language(self, aki: Akinator):
         """Starting with language='fr' must connect to the French Akinator server."""
         aki.start_game("fr")
@@ -221,6 +231,7 @@ class TestSyncIntegration:
         assert aki.lang == "fr"
         assert isinstance(aki.question, str) and len(aki.question) > 0
 
+    @core
     def test_child_mode(self, aki: Akinator):
         """Child mode must start without error and return a valid question."""
         aki.start_game("en", child_mode=True)
@@ -234,6 +245,7 @@ class TestSyncIntegration:
 
 
 class TestAsyncIntegration:
+    @core
     @pytest.mark.asyncio
     async def test_start_game_populates_session(self, async_aki: AsyncAkinator):
         """async start_game must return a real question and fill all session fields."""
@@ -251,6 +263,7 @@ class TestAsyncIntegration:
         assert async_aki.win is False
         assert async_aki.solver_url is not None
 
+    @core
     @pytest.mark.asyncio
     async def test_answer_advances_step(self, async_aki: AsyncAkinator):
         await async_aki.start_game("en")
@@ -267,6 +280,7 @@ class TestAsyncIntegration:
                     break
                 await aki.answer(ans)
 
+    @core
     @pytest.mark.asyncio
     async def test_back_returns_to_previous_question(self, async_aki: AsyncAkinator):
         await async_aki.start_game("en")
@@ -341,6 +355,7 @@ class TestAsyncIntegration:
         assert async_aki.child_mode is True
         assert isinstance(async_aki.question, str) and len(async_aki.question) > 0
 
+    @core
     @pytest.mark.asyncio
     async def test_yes_no_convenience_methods(self, async_aki: AsyncAkinator):
         """yes() and no() must work identically to answer('yes') / answer('no')."""

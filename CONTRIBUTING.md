@@ -49,10 +49,23 @@ Integration tests hit the real Akinator API and need a FlareSolverr-compatible s
 export AKIPY_SOLVER_URL="http://localhost:8191"   # FlareSolverr, TRAWL, or remote
 # legacy alias:
 # export AKIPY_FLARESOLVERR_URL="http://localhost:8191"
+
+# Full suite (local development)
 uv run pytest -m integration
+
+# Same smoke subset CI runs (~10 tests)
+uv run pytest -m "integration and integration_core"
 ```
 
-**GitHub Actions:** the `integration-test` job starts **TRAWL** as a service on the runner (`http://127.0.0.1:8191`, FlareSolverr v2-compatible, faster CF solves). It does not use a remote solver secret, because public hosts behind Cloudflare/WAF often return 403 to GitHub Actions IPs.
+**How CI is detected:** we do **not** branch inside tests on `if CI`. GitHub Actions sets `CI=true` and `GITHUB_ACTIONS=true` automatically, and the workflow command selects the smoke marker:
+
+```bash
+pytest -m "integration and integration_core"
+```
+
+Locally `CI` is unset; use `-m integration` for the full suite (including full games, choose/exclude, etc.).
+
+**GitHub Actions:** the `integration-test` job starts a solver service on the runner (`http://127.0.0.1:8191`) and runs the `integration_core` subset only.
 
 ## Development Workflow
 

@@ -130,10 +130,14 @@ jobs:
           echo "TRAWL did not become ready in time"
           exit 1
 
-      - name: Run integration tests against live Akinator API
+      - name: Run integration smoke tests against live Akinator API
         env:
           AKIPY_SOLVER_URL: http://127.0.0.1:8191
-        run: uv run pytest -m integration -v --no-cov
+          # GitHub Actions also sets CI=true / GITHUB_ACTIONS=true automatically.
+        # Smoke subset only (~10 tests). Full suite: local `pytest -m integration`.
+        run: >
+          uv run pytest -m "integration and integration_core" -v --no-cov
+          --override-ini="addopts=-v --strict-markers --tb=short"
         timeout-minutes: 20
 
   type-check:
