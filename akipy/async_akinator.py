@@ -38,7 +38,12 @@ from ._base import (
     TIMES_SELECTED_PATTERN,
     TIMES_PATTERN,
 )
-from .exceptions import CantGoBackAnyFurther, InvalidChoiceError
+from .exceptions import (
+    CantGoBackAnyFurther,
+    CloudflareBlockedError,
+    SolverError,
+    InvalidChoiceError,
+)
 from .utils import get_answer_id, async_request_handler
 
 
@@ -49,8 +54,38 @@ class Akinator(_BaseAkinator):
     You need to create an Instance of this Class to get started.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(
+        self,
+        solver_url: str | None = None,
+        solver_timeout: int | None = None,
+        *,
+        flaresolverr_url: str | None = None,
+        flaresolverr_timeout: int | None = None,
+    ) -> None:
+        """
+        Parameters:
+            solver_url: Optional challenge-solver URL (FlareSolverr, TRAWL, or
+                other FlareSolverr v2-compatible service). Local or remote;
+                http/https; with or without ``/v1``. Falls back to
+                ``AKIPY_SOLVER_URL`` or ``AKIPY_FLARESOLVERR_URL``.
+            solver_timeout: Solver ``maxTimeout`` in milliseconds (default 60000).
+            flaresolverr_url / flaresolverr_timeout: Aliases for
+                ``solver_url`` / ``solver_timeout``.
+        """
+        from .solver import DEFAULT_SOLVER_TIMEOUT_MS
+
+        resolved_url = solver_url if solver_url is not None else flaresolverr_url
+        if solver_timeout is not None:
+            resolved_timeout = solver_timeout
+        elif flaresolverr_timeout is not None:
+            resolved_timeout = flaresolverr_timeout
+        else:
+            resolved_timeout = DEFAULT_SOLVER_TIMEOUT_MS
+
+        super().__init__(
+            solver_url=resolved_url,
+            solver_timeout=resolved_timeout,
+        )
 
     async def __initialise(self):
         url = f"{self.uri}/game"
@@ -59,9 +94,16 @@ class Akinator(_BaseAkinator):
             self.client = httpx.AsyncClient(timeout=30.0)
         try:
             req = await async_request_handler(
-                url=url, method="POST", data=data, client=self.client
+                url=url,
+                method="POST",
+                data=data,
+                client=self.client,
+                solver_url=self.solver_url,
+                solver_timeout=self.solver_timeout,
             )
             self._parse_init_response(req.text)
+        except (CloudflareBlockedError, SolverError):
+            raise
         except httpx.HTTPError as e:
             raise httpx.HTTPStatusError(f"Failed to connect to Akinator server: {e}")
         except ValueError as e:
@@ -102,7 +144,12 @@ class Akinator(_BaseAkinator):
         data["answer"] = get_answer_id(option)
         data["step_last_proposition"] = self.step_last_proposition
         resp = await async_request_handler(
-            url=f"{self.uri}/answer", method="POST", data=data, client=self.client
+            url=f"{self.uri}/answer",
+            method="POST",
+            data=data,
+            client=self.client,
+            solver_url=self.solver_url,
+            solver_timeout=self.solver_timeout,
         )
         self.handle_response(resp)
         return self
@@ -116,6 +163,8 @@ class Akinator(_BaseAkinator):
             method="POST",
             data=self._base_data(),
             client=self.client,
+            solver_url=self.solver_url,
+            solver_timeout=self.solver_timeout,
         )
         self.handle_response(resp)
         return self
@@ -133,7 +182,12 @@ class Akinator(_BaseAkinator):
         self.id_proposition = ""
         try:
             resp = await async_request_handler(
-                url=f"{self.uri}/exclude", method="POST", data=data, client=self.client
+                url=f"{self.uri}/exclude",
+                method="POST",
+                data=data,
+                client=self.client,
+                solver_url=self.solver_url,
+                solver_timeout=self.solver_timeout,
             )
             self.handle_response(resp)
         except RuntimeError as e:
@@ -172,6 +226,8 @@ class Akinator(_BaseAkinator):
             data=data,
             client=self.client,
             follow_redirects=True,
+            solver_url=self.solver_url,
+            solver_timeout=self.solver_timeout,
         )
         if resp.status_code not in range(200, 400):
             resp.raise_for_status()
