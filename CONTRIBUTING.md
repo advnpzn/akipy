@@ -65,7 +65,7 @@ pytest -m "integration and integration_core"
 
 Locally `CI` is unset; use `-m integration` for the full suite (including full games, choose/exclude, etc.).
 
-**GitHub Actions:** the `integration-test` job starts a solver service on the runner (`http://127.0.0.1:8191`) and runs the `integration_core` subset only.
+**GitHub Actions:** the `integration-test` job starts **FlareSolverr** as a service on the runner (`http://127.0.0.1:8191`) and runs the `integration_core` subset only.
 
 ## Development Workflow
 
