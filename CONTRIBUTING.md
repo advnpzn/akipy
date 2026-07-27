@@ -31,7 +31,7 @@ uv run pre-commit install --hook-type pre-push
 
 ### 4. Verify setup
 ```bash
-# Run tests to ensure everything is working
+# Run unit tests (integration tests are excluded by default)
 uv run pytest
 
 # Check code quality
@@ -40,6 +40,19 @@ uv run ruff check .
 # Run type checking
 uv run mypy akipy
 ```
+
+### 5. Integration tests (optional, live API)
+
+Integration tests hit the real Akinator API and need a FlareSolverr-compatible solver for Cloudflare ([FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) or [TRAWL](https://github.com/germondai/trawl)). Do not commit the URL; pass it with an env var:
+
+```bash
+export AKIPY_SOLVER_URL="http://localhost:8191"   # FlareSolverr, TRAWL, or remote
+# legacy alias:
+# export AKIPY_FLARESOLVERR_URL="http://localhost:8191"
+uv run pytest -m integration
+```
+
+For GitHub Actions, add secret `AKIPY_SOLVER_URL` (or `AKIPY_FLARESOLVERR_URL`) under Settings → Secrets and variables → Actions. The `integration-test` job uses it as an env var.
 
 ## Development Workflow
 
