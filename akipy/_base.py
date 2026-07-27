@@ -1,12 +1,18 @@
 """Shared base class and compiled regex patterns for sync and async Akinator."""
 
 import html
+import os
 import re
+from typing import Any
 
 import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
 from .exceptions import InvalidLanguageError
+from .solver import (
+    DEFAULT_SOLVER_TIMEOUT_MS,
+    normalize_solver_url,
+)
 
 # Compiled once at import time, shared by both subclasses
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
@@ -29,35 +35,54 @@ class _BaseAkinator:
 
     _validated_languages: set = set()
 
-    def __init__(self):
-        self.flag_photo = None
-        self.photo = None
-        self.pseudo = None
-        self.uri = None
-        self.theme = None
-        self.session = None
-        self.signature = None
-        self.identifiant = None
+    def __init__(
+        self,
+        solver_url: str | None = None,
+        solver_timeout: int = DEFAULT_SOLVER_TIMEOUT_MS,
+    ) -> None:
+        self.flag_photo: str | int | None = None
+        self.photo: str | None = None
+        self.pseudo: str | None = None
+        self.uri: str | None = None
+        self.theme: int | None = None
+        self.session: str | None = None
+        self.signature: str | None = None
+        self.identifiant: str | None = None
         self.child_mode: bool = False
         self._child_mode_str: str = "false"
-        self.lang = None
-        self.available_themes = []
-        self.question = None
-        self.progression = None
-        self.step = None
-        self.akitude = None
-        self.step_last_proposition = ""
-        self.finished = False
-        self.win = False
-        self.id_proposition = ""
-        self.name_proposition = ""
-        self.description_proposition = ""
-        self.proposition_message = ""
-        self.completion = "OK"
-        self.client = None
+        self.lang: str | None = None
+        self.available_themes: list[str] = []
+        self.question: str | None = None
+        self.progression: str | None = None
+        self.step: str | None = None
+        self.akitude: str | None = None
+        self.step_last_proposition: str = ""
+        self.finished: bool = False
+        self.win: bool = False
+        self.id_proposition: str = ""
+        self.name_proposition: str = ""
+        self.description_proposition: str = ""
+        self.proposition_message: str = ""
+        self.completion: str = "OK"
+        # Sync and async subclasses use different httpx client types
+        self.client: Any = None
+        # Optional challenge solver (FlareSolverr / TRAWL / compatible):
+        # constructor arg wins; else AKIPY_SOLVER_URL or AKIPY_FLARESOLVERR_URL env
+        raw_solver = (
+            solver_url
+            if solver_url is not None
+            else os.environ.get("AKIPY_SOLVER_URL")
+            or os.environ.get("AKIPY_FLARESOLVERR_URL")
+        )
+        self.solver_url: str | None = normalize_solver_url(raw_solver)
+        self.solver_timeout: int = solver_timeout
+
+        # Aliases for older parameter names
+        self.flaresolverr_url = self.solver_url
+        self.flaresolverr_timeout = self.solver_timeout
 
     def _set_region(self, lang: str) -> None:
-        """Resolve and validate language purely from local dicts — no network call."""
+        """Resolve and validate language from local dicts (no network call)."""
         if len(lang) > 2:
             lang = LANG_MAP.get(lang, lang)
         else:
@@ -116,7 +141,7 @@ class _BaseAkinator:
             self.question = html.unescape(resp.get("question", ""))
         elif action == "win":
             self.win = True
-            self.step_last_proposition = self.step
+            self.step_last_proposition = self.step or ""
             self.id_proposition = resp.get("id_proposition", "")
             self.name_proposition = html.unescape(resp.get("name_proposition", ""))
             self.description_proposition = html.unescape(
@@ -192,7 +217,7 @@ class _BaseAkinator:
 
     @property
     def confidence(self) -> float:
-        return float(self.progression) / 100
+        return float(self.progression or 0) / 100
 
     @property
     def akitude_url(self) -> str:
