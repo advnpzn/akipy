@@ -34,10 +34,10 @@ class CloudflareBlockedError(Exception):
     ):
         super().__init__(message)
 
-
 class SolverError(Exception):
     """Raise when a challenge solver (FlareSolverr, TRAWL, etc.) fails or returns non-ok."""
 
     pass
 
 FlareSolverrError = SolverError  # alias
+
