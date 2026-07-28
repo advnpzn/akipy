@@ -316,7 +316,7 @@ class TestAsyncAkinatorBack:
     async def test_back_at_first_question_raises_error(self):
         """Test that going back at first question raises error"""
         aki = AsyncAkinator()
-        aki.step = 1
+        aki.step = 0
 
         with pytest.raises(CantGoBackAnyFurther, match="first question"):
             await aki.back()

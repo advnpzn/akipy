@@ -163,7 +163,7 @@ class Akinator(_BaseAkinator):
         return self
 
     def back(self):
-        if int(self.step) <= 1:
+        if int(self.step) <= 0:
             raise CantGoBackAnyFurther("You are already at the first question")
         self.win = False
         resp = request_handler(
