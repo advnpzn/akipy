@@ -16,6 +16,12 @@ class InvalidChoiceError(ValueError):
     pass
 
 
+class InvalidThemeError(ValueError):
+    """Raise when the user input theme is not a valid theme for the selected language"""
+
+    pass
+
+
 class CloudflareBlockedError(Exception):
     """Raise when Cloudflare blocks the request and no challenge solver is configured."""
 

@@ -273,6 +273,28 @@ class TestSyncIntegration:
         assert aki.child_mode is True
         assert isinstance(aki.question, str) and len(aki.question) > 0
 
+    @core
+    def test_game_mode(self, aki: Akinator):
+        """Different game modes must result in the proper index for the specified language"""
+        aki.start_game("en", game_mode="c")
+        assert aki.theme == 1
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    def test_game_mode_animal(self, aki: Akinator):
+        """Different game modes must result in the proper index for the specified language"""
+        aki.start_game("en", game_mode="a")
+        assert aki.theme == 14
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    def test_game_mode_object(self, aki: Akinator):
+        """Different game modes must result in the proper index for the specified language"""
+        aki.start_game("en", game_mode="a")
+        assert aki.theme == 2
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
 
 # ---------------------------------------------------------------------------
 # Async tests
@@ -389,6 +411,27 @@ class TestAsyncIntegration:
         await async_aki.start_game("en", child_mode=True)
         assert async_aki.child_mode is True
         assert isinstance(async_aki.question, str) and len(async_aki.question) > 0
+
+    @pytest.mark.asyncio
+    async def test_game_mode(self, aki: Akinator):
+        await aki.start_game("en", game_mode="c")
+        assert aki.theme == 1
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    @pytest.mark.asyncio
+    async def test_game_mode_animal(self, aki: Akinator):
+        await aki.start_game("en", game_mode="a")
+        assert aki.theme == 14
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    @pytest.mark.asyncio
+    async def test_game_mode_object(self, aki: Akinator):
+        await aki.start_game("en", game_mode="a")
+        assert aki.theme == 2
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
 
     @core
     @pytest.mark.asyncio

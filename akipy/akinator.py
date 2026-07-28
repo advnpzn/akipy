@@ -125,16 +125,22 @@ class Akinator(_BaseAkinator):
                 f"Invalid response data: {last_value_error}"
             ) from last_value_error
 
-    def start_game(self, language: str | None = "en", child_mode: bool = False):
+    def start_game(
+        self,
+        language: str | None = "en",
+        child_mode: bool = False,
+        game_mode: str | None = "c",
+    ):
         """
-        Start the Akinator game. English and non-child mode are used by default.
+        Start the Akinator game. English, non-child mode, and the theme "character" are used by default.
         :param language: "en"
         :param child_mode: False
+        :param game_mode: "c"
         :return: self
         """
         self.child_mode = child_mode
         self._child_mode_str = str(child_mode).lower()
-        self._set_region(lang=language or "en")
+        self._set_region(lang=language or "en", mode=game_mode or "c")
         self.__initialise()
         return self
 
