@@ -154,7 +154,9 @@ class TestAsyncAkinatorStartGame:
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
 
-        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+        mocker.patch(
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
+        )
 
         await aki.start_game()
 
@@ -175,7 +177,9 @@ class TestAsyncAkinatorStartGame:
         mock_response.text = mock_game_initialization_response
         mock_response.raise_for_status = mocker.Mock()
 
-        mocker.patch("akipy.akinator.request_handler", return_value=mock_response)
+        mocker.patch(
+            "akipy.async_akinator.async_request_handler", return_value=mock_response
+        )
 
         await aki.start_game(language="french", game_mode="o")
 

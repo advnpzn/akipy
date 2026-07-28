@@ -80,8 +80,8 @@ class TestInvalidThemeError:
 
     def test_invalid_theme_error_message(self):
         """Test that InvalidChoiceError carries the message"""
-        with pytest.raises(InvalidChoiceError, match="Invalid"):
-            raise InvalidChoiceError("Invalid theme chosen for language")
+        with pytest.raises(InvalidThemeError, match="Invalid"):
+            raise InvalidThemeError("Invalid theme chosen for language")
 
 
 class TestCloudflareBlockedError:
