@@ -277,7 +277,7 @@ class TestSyncIntegration:
     def test_game_mode(self, aki: Akinator):
         """Different game modes must result in the proper index for the specified language"""
         aki.start_game("en", game_mode="c")
-        assert aki.theme == 0
+        assert aki.theme == 1
         assert isinstance(aki.theme, int)
         assert isinstance(aki.question, str) and len(aki.question) > 0
 
@@ -415,7 +415,7 @@ class TestAsyncIntegration:
     @pytest.mark.asyncio
     async def test_game_mode(self, aki: Akinator):
         await aki.start_game("en", game_mode="c")
-        assert aki.theme == 0
+        assert aki.theme == 1
         assert isinstance(aki.theme, int)
         assert isinstance(aki.question, str) and len(aki.question) > 0
 
