@@ -412,6 +412,27 @@ class TestAsyncIntegration:
         assert async_aki.child_mode is True
         assert isinstance(async_aki.question, str) and len(async_aki.question) > 0
 
+    @pytest.mark.asyncio
+    def test_game_mode(self, aki: Akinator):
+        await aki.start_game("en", game_mode="c")
+        assert aki.theme == 0
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    @pytest.mark.asyncio
+    def test_game_mode_animal(self, aki: Akinator):
+        await aki.start_game("en", game_mode="a")
+        assert aki.theme == 14
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
+    @pytest.mark.asyncio
+    def test_game_mode_object(self, aki: Akinator):
+        await aki.start_game("en", game_mode="a")
+        assert aki.theme == 2
+        assert isinstance(aki.theme, int)
+        assert isinstance(aki.question, str) and len(aki.question) > 0
+
     @core
     @pytest.mark.asyncio
     async def test_yes_no_convenience_methods(self, async_aki: AsyncAkinator):
