@@ -131,7 +131,7 @@ class Akinator(_BaseAkinator):
         self,
         language: str | None = "en",
         child_mode: bool = False,
-        game_mode: str = "c",
+        game_mode: str | None = "c",
     ):
         """
         Start the Akinator game. English, non-child mode, and the theme "character" are used by default.
