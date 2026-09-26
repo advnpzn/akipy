@@ -157,7 +157,8 @@ class Akinator(_BaseAkinator):
                 "Only 'yes' or 'no' can be answered when Akinator has proposed a win"
             )
         data = self._base_data()
-        data["answer"] = get_answer_id(option)
+        answer_index = get_answer_id(option)
+        data["answer"] = answer_index
         data["step_last_proposition"] = self.step_last_proposition
         resp = await async_request_handler(
             url=f"{self.uri}/answer",
@@ -167,7 +168,7 @@ class Akinator(_BaseAkinator):
             solver_url=self.solver_url,
             solver_timeout=self.solver_timeout,
         )
-        self.handle_response(resp)
+        self.handle_response(resp, answer_index=answer_index)
         if self._answer_depth is not None:
             self._answer_depth += 1
         return self
@@ -185,7 +186,7 @@ class Akinator(_BaseAkinator):
             solver_url=self.solver_url,
             solver_timeout=self.solver_timeout,
         )
-        self.handle_response(resp)
+        self.handle_response(resp, going_back=True)
         self.win = False
         self.no_question = False
         if self._answer_depth is not None:

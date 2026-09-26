@@ -29,6 +29,9 @@ STORAGE_STEP_PATTERN = re.compile(r"localStorage\.setItem\('step',\s*'(.+?)'\)")
 STORAGE_PROGRESSION_PATTERN = re.compile(
     r"localStorage\.setItem\('progression',\s*'(.+?)'\)"
 )
+STORAGE_ANSWER_SCORES_PATTERN = re.compile(
+    r"localStorage\.setItem\('trouvitudesReponses',\s*'([^']+)'\)"
+)
 QUESTION_PATTERN = re.compile(
     r'<p\b[^>]*\bid="question-label"[^>]*>(.*?)</p>', re.DOTALL
 )
@@ -44,6 +47,58 @@ TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
 TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
 # Chrome/FlareSolverr JSON viewer wraps payload in <pre>...</pre>
 _PRE_JSON_PATTERN = re.compile(r"<pre[^>]*>(.*?)</pre>", re.DOTALL | re.IGNORECASE)
+
+# The site's non-animated PNG fallback uses these mood transitions. The scores
+# are supplied by /game and each question response, but the image name is not.
+_MOOD_IMAGES = {
+    "confiant:confiant": "mobile",
+    "confiant:serein+": "surprise",
+    "confiant:serein-": "surprise",
+    "confiant:inquiet+": "surprise",
+    "confiant:inquiet-": "surprise",
+    "serein+:serein+": "serein_1",
+    "serein+:serein-": "concentration",
+    "serein-:serein-": "serein_2",
+    "serein-:serein+": "inspiration_legere",
+    "serein+:inquiet+": "surprise",
+    "serein+:inquiet-": "surprise",
+    "serein-:inquiet+": "concentration",
+    "serein-:inquiet-": "surprise",
+    "inquiet+:serein+": "inspiration_forte",
+    "inquiet+:serein-": "concentration",
+    "inquiet-:serein+": "inspiration_forte",
+    "inquiet-:serein-": "inspiration_forte",
+    "inquiet+:inquiet+": "inquiet",
+    "inquiet+:inquiet-": "leger_decouragement",
+    "inquiet-:inquiet+": "concentration_intense",
+    "inquiet-:inquiet-": "decouragement",
+    "serein+:confiant": "inspiration_forte",
+    "serein-:confiant": "inspiration_forte",
+    "inquiet+:confiant": "inspiration_forte",
+    "inquiet-:confiant": "inspiration_forte",
+}
+
+
+def _mood_for_score(score: float, step: int) -> str:
+    if score >= (50 + step * 1.4 if step <= 30 else 92):
+        return "confiant"
+    if score >= (15 + step * 2.3 if step <= 30 else 85):
+        return "serein+"
+    if score >= (-15 + step * 3 if step <= 30 else 75):
+        return "serein-"
+    if score >= (-25 + step * 2.5 if step <= 30 else 50):
+        return "inquiet+"
+    return "inquiet-"
+
+
+def _parse_answer_scores(value: Any) -> list[float] | None:
+    try:
+        scores = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(scores, list) or len(scores) != 5:
+            return None
+        return [float(score) for score in scores]
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_api_json(text: str) -> Any:
@@ -107,6 +162,9 @@ class _BaseAkinator:
         self.step: str | None = None
         self._answer_depth: int | None = None
         self.akitude: str | None = None
+        self._answer_scores: list[float] | None = None
+        self._mood_states: list[str] = ["serein+"]
+        self._akitude_history: list[str] = ["serein_2"]
         self.step_last_proposition: str = ""
         self.finished: bool = False
         self.win: bool = False
@@ -188,6 +246,12 @@ class _BaseAkinator:
         self._answer_depth = 0
         self.progression = progression_m.group(1) if progression_m else "0.00000"
         self.akitude = image_m.group(1).rsplit("/", 1)[-1] if image_m else "defi.png"
+        scores_m = STORAGE_ANSWER_SCORES_PATTERN.search(text)
+        self._answer_scores = (
+            _parse_answer_scores(scores_m.group(1)) if scores_m else None
+        )
+        self._mood_states = ["serein+"]
+        self._akitude_history = [self.akitude.removesuffix(".png")]
         self.win = False
         self.finished = False
         self.no_question = False
@@ -246,7 +310,48 @@ class _BaseAkinator:
         else:
             raise NotImplementedError(f"Unable to handle action: {action}")
 
-    def handle_response(self, resp: httpx.Response) -> None:
+    def _advance_akitude(self, answer_index: int) -> None:
+        if self._answer_scores is None:
+            return
+        score = self._answer_scores[answer_index]
+        previous = self._mood_states[-1]
+        target = _mood_for_score(score, int(self.step or 0))
+        image = _MOOD_IMAGES.get(f"{previous}:{target}", "serein_2")
+        if (
+            score - float(self.progression or 0) >= 10
+            and previous == target == "inquiet-"
+        ):
+            image = "inquiet"
+        if image == self._akitude_history[-1]:
+            if image == "serein_1":
+                image = "serein_2"
+            elif image == "serein_2":
+                image = "serein_1"
+        self._mood_states.append(target)
+        self._akitude_history.append(image)
+        self.akitude = f"{image}.png"
+
+    def _show_proposal_akitude(self) -> None:
+        self.akitude = (
+            "espoir_anxieux.png"
+            if self._mood_states[-1].startswith("inquiet")
+            else "confiant.png"
+        )
+
+    def _restore_akitude(self) -> None:
+        if len(self._mood_states) > 1:
+            self._mood_states.pop()
+        if len(self._akitude_history) > 1:
+            self._akitude_history.pop()
+        self.akitude = f"{self._akitude_history[-1]}.png"
+
+    def handle_response(
+        self,
+        resp: httpx.Response,
+        *,
+        answer_index: int | None = None,
+        going_back: bool = False,
+    ) -> None:
         """Parse an API response and update game state. Used by both sync and async paths."""
         resp.raise_for_status()
         raw_text = getattr(resp, "text", "")
@@ -295,6 +400,16 @@ class _BaseAkinator:
             raise AkinatorServerError(
                 "Akinator rejected the game request (session expired or game state out of sync)"
             )
+        if going_back:
+            self._restore_akitude()
+        elif "id_proposition" in data:
+            self._show_proposal_akitude()
+        elif answer_index is not None:
+            self._advance_akitude(answer_index)
+        if "trouvitudesReponses" in data:
+            self._answer_scores = _parse_answer_scores(data["trouvitudesReponses"])
+        elif answer_index is not None or going_back:
+            self._answer_scores = None
         if data["completion"] == "SOUNDLIKE":
             self.finished = True
             self.win = False
@@ -349,7 +464,7 @@ class _BaseAkinator:
 
     @property
     def akinator_image_url(self) -> str:
-        """URL of the last known PNG fallback image for Akinator."""
+        """URL of the current non-animated PNG fallback image for Akinator."""
         return self.akitude_url
 
     def __str__(self) -> str:

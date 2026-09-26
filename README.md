@@ -75,10 +75,12 @@ print(aki.pseudo)
 print(aki.photo)
 ```
 
-`aki.akinator_image_url` provides the last known PNG fallback image for
-Akinator's animation, initially read from the game page. `aki.akitude_url`
-remains available as an alias. The current game API does not return an SVG or
-a per-answer image; the website loads Lottie animation assets separately.
+`aki.akinator_image_url` provides the PNG fallback image for Akinator's
+current question or guess. The image changes after an answer and is restored
+by `back()`. `aki.akitude_url` remains available as an alias. The site
+calculates this image locally from answer scores; its animated Lottie visuals
+are separate and may look different from the PNG fallback. If the site omits
+answer scores, the last known PNG remains available.
 
 If Akinator rejects a request with `completion="KO"`, akipy raises
 `AkinatorServerError`. After a guess, `aki.no_question` means there are no more
