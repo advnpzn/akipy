@@ -175,7 +175,6 @@ class Akinator(_BaseAkinator):
             self._answer_depth is None and int(self.step) <= 0
         ):
             raise CantGoBackAnyFurther("You are already at the first question")
-        self.win = False
         resp = request_handler(
             url=f"{self.uri}/cancel_answer",
             method="POST",
@@ -185,6 +184,8 @@ class Akinator(_BaseAkinator):
             solver_timeout=self.solver_timeout,
         )
         self.handle_response(resp)
+        self.win = False
+        self.no_question = False
         if self._answer_depth is not None:
             self._answer_depth -= 1
         return self
@@ -197,31 +198,19 @@ class Akinator(_BaseAkinator):
         if self.finished:
             return self.defeat()
         data = self._base_data()
-        data["forward_answer"] = "1"
-        self.win = False
-        self.id_proposition = ""
-        try:
-            resp = request_handler(
-                url=f"{self.uri}/exclude",
-                method="POST",
-                data=data,
-                client=self.client,
-                solver_url=self.solver_url,
-                solver_timeout=self.solver_timeout,
-            )
+        data["forward_answer"] = "0" if self.no_question else "1"
+        resp = request_handler(
+            url=f"{self.uri}/exclude",
+            method="POST",
+            data=data,
+            client=self.client,
+            solver_url=self.solver_url,
+            solver_timeout=self.solver_timeout,
+        )
+        if self.no_question:
+            self.handle_soundlike_transition(resp)
+        else:
             self.handle_response(resp)
-        except RuntimeError as e:
-            error_msg = str(e)
-            if any(
-                msg in error_msg
-                for msg in [
-                    "HTML instead of JSON",
-                    "Failed to parse JSON",
-                    "No more characters available",
-                ]
-            ):
-                return self.defeat()
-            raise
         return self
 
     def choose(self):

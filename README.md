@@ -55,7 +55,7 @@ import akipy
 aki = akipy.Akinator()
 aki.start_game()
 
-while not aki.win:
+while not aki.win and not aki.finished:
     ans = input(str(aki) + "\n\t")
     if ans == "b":
         try:
@@ -74,6 +74,17 @@ print(aki.description_proposition)
 print(aki.pseudo)
 print(aki.photo)
 ```
+
+`aki.akinator_image_url` provides the last known PNG fallback image for
+Akinator's animation, initially read from the game page. `aki.akitude_url`
+remains available as an alias. The current game API does not return an SVG or
+a per-answer image; the website loads Lottie animation assets separately.
+
+If Akinator rejects a request with `completion="KO"`, akipy raises
+`AkinatorServerError`. After a guess, `aki.no_question` means there are no more
+questions to ask. `aki.child_mode_blocked` marks a guess hidden by child mode,
+and `aki.soundlike` marks the site's sounds-like ending. In either terminal
+case, `aki.finished` is `True`.
 
 ## Cloudflare / challenge solvers (optional)
 
@@ -131,6 +142,7 @@ CI integration tests start **FlareSolverr** as a service on the runner (`http://
 |-----------|------|
 | `CloudflareBlockedError` | Challenge detected and no `solver_url` configured |
 | `SolverError` | Solver unreachable or returned a non-ok status (`FlareSolverrError` is an alias) |
+| `AkinatorServerError` | Akinator rejected the game request, often because the session expired or the game state is out of sync |
 
 # Contributing
 

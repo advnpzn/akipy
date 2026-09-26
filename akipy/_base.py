@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
-from .exceptions import InvalidLanguageError, InvalidThemeError
+from .exceptions import AkinatorServerError, InvalidLanguageError, InvalidThemeError
 from .solver import (
     DEFAULT_SOLVER_TIMEOUT_MS,
     normalize_solver_url,
@@ -34,6 +34,9 @@ QUESTION_PATTERN = re.compile(
 )
 PROPOSITION_PATTERN = re.compile(
     r'<p\b[^>]*\bid="p-sub-bubble"[^>]*>(.*?)</p>', re.DOTALL
+)
+AKITUDE_IMAGE_PATTERN = re.compile(
+    r'<img\b[^>]*\bid="akitude"[^>]*\bsrc="([^"]+)"', re.DOTALL
 )
 WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
 ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
@@ -107,6 +110,9 @@ class _BaseAkinator:
         self.step_last_proposition: str = ""
         self.finished: bool = False
         self.win: bool = False
+        self.no_question: bool = False
+        self.child_mode_blocked: bool = False
+        self.soundlike: bool = False
         self.id_proposition: str = ""
         self.name_proposition: str = ""
         self.description_proposition: str = ""
@@ -175,12 +181,20 @@ class _BaseAkinator:
             )
         self.proposition_message = html.unescape(proposition_m.group(1))
 
+        image_m = AKITUDE_IMAGE_PATTERN.search(text)
         step_m = STORAGE_STEP_PATTERN.search(text)
         progression_m = STORAGE_PROGRESSION_PATTERN.search(text)
         self.step = step_m.group(1) if step_m else "0"
         self._answer_depth = 0
         self.progression = progression_m.group(1) if progression_m else "0.00000"
-        self.akitude = "defi.png"
+        self.akitude = image_m.group(1).rsplit("/", 1)[-1] if image_m else "defi.png"
+        self.win = False
+        self.finished = False
+        self.no_question = False
+        self.child_mode_blocked = False
+        self.soundlike = False
+        self.step_last_proposition = ""
+        self.completion = "OK"
 
     def _base_data(self) -> dict:
         """Common form fields shared across answer/back/exclude requests."""
@@ -197,13 +211,16 @@ class _BaseAkinator:
 
     def _update(self, action: str, resp: dict) -> None:
         if action == "answer":
+            self.win = False
+            self.no_question = False
+            self.id_proposition = ""
             self.akitude = resp.get("akitude", self.akitude)
             self.step = resp.get("step", self.step)
             self.progression = resp.get("progression", self.progression)
             self.question = html.unescape(resp.get("question", ""))
         elif action == "win":
             self.win = True
-            self.step_last_proposition = self.step or ""
+            self.step_last_proposition = str(resp.get("step", self.step or ""))
             self.id_proposition = resp.get("id_proposition", "")
             self.name_proposition = html.unescape(resp.get("name_proposition", ""))
             self.description_proposition = html.unescape(
@@ -215,6 +232,17 @@ class _BaseAkinator:
             self.progression = resp.get("progression", self.progression)
             self.step = resp.get("step", self.step)
             self.akitude = resp.get("akitude", self.akitude)
+            self.no_question = str(resp.get("no_question", "0")) == "1"
+            self.child_mode_blocked = str(resp.get("valide_contrainte", "1")) == "0"
+            if self.child_mode_blocked:
+                self.win = False
+                self.finished = True
+                self.id_proposition = ""
+                self.name_proposition = ""
+                self.description_proposition = ""
+                self.pseudo = None
+                self.photo = None
+                self.flag_photo = None
         else:
             raise NotImplementedError(f"Unable to handle action: {action}")
 
@@ -258,19 +286,46 @@ class _BaseAkinator:
             )
 
         if "completion" not in data:
+            if "question" not in data and "id_proposition" not in data:
+                raise AkinatorServerError("Akinator returned no game result")
             data["completion"] = self.completion
         if data["completion"] == "KO - TIMEOUT":
             raise TimeoutError("The session has timed out.")
+        if data["completion"] == "KO":
+            raise AkinatorServerError(
+                "Akinator rejected the game request (session expired or game state out of sync)"
+            )
         if data["completion"] == "SOUNDLIKE":
             self.finished = True
-            self.win = True
-            if not self.id_proposition:
-                self.defeat()
+            self.win = False
+            self.soundlike = True
         elif "id_proposition" in data:
             self._update(action="win", resp=data)
         else:
             self._update(action="answer", resp=data)
         self.completion = data["completion"]
+
+    def handle_soundlike_transition(self, resp: httpx.Response) -> None:
+        """Handle the terminal /exclude response when no questions remain."""
+        resp.raise_for_status()
+        try:
+            data = parse_api_json(resp.text)
+        except ValueError as e:
+            raise AkinatorServerError(
+                "Akinator returned an invalid terminal response"
+            ) from e
+        if (
+            not isinstance(data, dict)
+            or data.get("completion") == "KO"
+            or "step" not in data
+        ):
+            raise AkinatorServerError("Akinator rejected the terminal game request")
+        self.step = data["step"]
+        self.win = False
+        self.finished = True
+        self.soundlike = True
+        self.id_proposition = ""
+        self.completion = "SOUNDLIKE"
 
     def defeat(self):
         self.finished = True
@@ -291,6 +346,11 @@ class _BaseAkinator:
     @property
     def akitude_url(self) -> str:
         return f"{self.uri}/assets/img/akitudes_670x1096/{self.akitude}"
+
+    @property
+    def akinator_image_url(self) -> str:
+        """URL of the last known PNG fallback image for Akinator."""
+        return self.akitude_url
 
     def __str__(self) -> str:
         if self.win and not self.finished:

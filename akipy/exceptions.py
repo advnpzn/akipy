@@ -22,6 +22,12 @@ class InvalidThemeError(ValueError):
     pass
 
 
+class AkinatorServerError(RuntimeError):
+    """Raise when Akinator rejects a game request despite an HTTP 200 response."""
+
+    pass
+
+
 class CloudflareBlockedError(Exception):
     """Raise when Cloudflare blocks the request and no challenge solver is configured."""
 

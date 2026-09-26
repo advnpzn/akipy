@@ -9,6 +9,7 @@ from akipy.exceptions import CantGoBackAnyFurther
 
 
 CURRENT_GAME_HTML = """
+<img id="akitude" src="/assets/img/akitudes_670x1096/serein_2.png" alt="akitude"/>
 <div class="bubble-body"><p class="question-text"
  id="question-label">Is your character real?</p></div>
 <div class="sub-bubble-propose"><p id="p-sub-bubble">I think of</p></div>
@@ -66,6 +67,9 @@ def test_sync_current_page_start_and_answer(mocker):
             "0",
             "Is your character real?",
         )
+        assert aki.akinator_image_url == (
+            "https://en.akinator.com/assets/img/akitudes_670x1096/serein_2.png"
+        )
         with pytest.raises(CantGoBackAnyFurther):
             aki.back()
         aki.answer("yes")
@@ -117,6 +121,7 @@ async def test_async_current_page_start_and_answer(mocker):
     async with AsyncAkinator(solver_url="") as aki:
         await aki.start_game()
         assert (aki.step, aki.progression, aki.signature) == ("1", "0", None)
+        assert aki.akinator_image_url == aki.akitude_url
         with pytest.raises(CantGoBackAnyFurther):
             await aki.back()
         await aki.answer("yes")
