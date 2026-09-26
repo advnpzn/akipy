@@ -166,10 +166,14 @@ class Akinator(_BaseAkinator):
             solver_timeout=self.solver_timeout,
         )
         self.handle_response(resp)
+        if self._answer_depth is not None:
+            self._answer_depth += 1
         return self
 
     def back(self):
-        if int(self.step) <= 0:
+        if (self._answer_depth == 0) or (
+            self._answer_depth is None and int(self.step) <= 0
+        ):
             raise CantGoBackAnyFurther("You are already at the first question")
         self.win = False
         resp = request_handler(
@@ -181,6 +185,8 @@ class Akinator(_BaseAkinator):
             solver_timeout=self.solver_timeout,
         )
         self.handle_response(resp)
+        if self._answer_depth is not None:
+            self._answer_depth -= 1
         return self
 
     def exclude(self):
@@ -191,7 +197,7 @@ class Akinator(_BaseAkinator):
         if self.finished:
             return self.defeat()
         data = self._base_data()
-        data["forward_answer"] = "0"
+        data["forward_answer"] = "1"
         self.win = False
         self.id_proposition = ""
         try:
@@ -227,13 +233,14 @@ class Akinator(_BaseAkinator):
             "step": self.step,
             "sid": self.theme,
             "session": self.session,
-            "signature": self.signature,
             "identifiant": self.identifiant,
             "pid": self.id_proposition,
             "charac_name": self.name_proposition,
             "charac_desc": self.description_proposition,
             "pflag_photo": self.flag_photo,
         }
+        if self.signature is not None:
+            data["signature"] = self.signature
         resp = request_handler(
             url=f"{self.uri}/choice",
             method="POST",

@@ -21,11 +21,19 @@ from .solver import (
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
 SIGNATURE_PATTERN = re.compile(r"#signature'\).val\('(.+?)'\)")
 IDENTIFIANT_PATTERN = re.compile(r"#identifiant'\).val\('(.+?)'\)")
+STORAGE_SESSION_PATTERN = re.compile(r"localStorage\.setItem\('session',\s*'(.+?)'\)")
+STORAGE_IDENTIFIANT_PATTERN = re.compile(
+    r"localStorage\.setItem\('identifiant',\s*'(.+?)'\)"
+)
+STORAGE_STEP_PATTERN = re.compile(r"localStorage\.setItem\('step',\s*'(.+?)'\)")
+STORAGE_PROGRESSION_PATTERN = re.compile(
+    r"localStorage\.setItem\('progression',\s*'(.+?)'\)"
+)
 QUESTION_PATTERN = re.compile(
-    r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>'
+    r'<p\b[^>]*\bid="question-label"[^>]*>(.*?)</p>', re.DOTALL
 )
 PROPOSITION_PATTERN = re.compile(
-    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>'
+    r'<p\b[^>]*\bid="p-sub-bubble"[^>]*>(.*?)</p>', re.DOTALL
 )
 WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
 ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
@@ -94,6 +102,7 @@ class _BaseAkinator:
         self.question: str | None = None
         self.progression: str | None = None
         self.step: str | None = None
+        self._answer_depth: int | None = None
         self.akitude: str | None = None
         self.step_last_proposition: str = ""
         self.finished: bool = False
@@ -141,15 +150,17 @@ class _BaseAkinator:
 
     def _parse_init_response(self, text: str) -> None:
         """Extract session credentials and first question from the /game HTML response."""
-        session_m = SESSION_PATTERN.search(text)
+        session_m = STORAGE_SESSION_PATTERN.search(text) or SESSION_PATTERN.search(text)
         signature_m = SIGNATURE_PATTERN.search(text)
-        identifiant_m = IDENTIFIANT_PATTERN.search(text)
-        if not (session_m and signature_m and identifiant_m):
+        identifiant_m = STORAGE_IDENTIFIANT_PATTERN.search(
+            text
+        ) or IDENTIFIANT_PATTERN.search(text)
+        if not (session_m and identifiant_m):
             raise ValueError(
-                "Response does not contain expected data: session, signature, or identifiant"
+                "Response does not contain expected data: session or identifiant"
             )
         self.session = session_m.group(1)
-        self.signature = signature_m.group(1)
+        self.signature = signature_m.group(1) if signature_m else None
         self.identifiant = identifiant_m.group(1)
 
         question_m = QUESTION_PATTERN.search(text)
@@ -164,20 +175,25 @@ class _BaseAkinator:
             )
         self.proposition_message = html.unescape(proposition_m.group(1))
 
-        self.progression = "0.00000"
-        self.step = "0"
+        step_m = STORAGE_STEP_PATTERN.search(text)
+        progression_m = STORAGE_PROGRESSION_PATTERN.search(text)
+        self.step = step_m.group(1) if step_m else "0"
+        self._answer_depth = 0
+        self.progression = progression_m.group(1) if progression_m else "0.00000"
         self.akitude = "defi.png"
 
     def _base_data(self) -> dict:
         """Common form fields shared across answer/back/exclude requests."""
-        return {
+        data = {
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
             "cm": self._child_mode_str,
             "session": self.session,
-            "signature": self.signature,
         }
+        if self.signature is not None:
+            data["signature"] = self.signature
+        return data
 
     def _update(self, action: str, resp: dict) -> None:
         if action == "answer":
