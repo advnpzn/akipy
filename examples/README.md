@@ -1,6 +1,8 @@
 # Examples
 
-This directory contains example scripts demonstrating different ways to use the akipy library.
+These scripts cover the basic sync and async clients. For a complete game loop
+with guesses, Back, the current image URL, and terminal states, see the
+[usage guide](../README.md#usage).
 
 ## Files
 
@@ -108,13 +110,16 @@ await aki.close()  # Easy to forget!
 
 ### Error Handling
 
-Always handle exceptions properly:
+Handle invalid answers and Back separately:
 
 ```python
 try:
     aki.answer("yes")
 except akipy.InvalidChoiceError:
     print("Invalid choice!")
+
+try:
+    aki.back()
 except akipy.CantGoBackAnyFurther:
     print("Can't go back further!")
 ```
@@ -128,7 +133,19 @@ You can answer questions with:
 - `"idk"`, `"i don't know"`, or `2`
 - `"probably"`, `"p"`, or `3`
 - `"probably not"`, `"pn"`, or `4`
-- `"b"` to go back (custom in examples)
+- Call `aki.back()` to go back. `"b"` is only a shortcut used by some examples.
+
+## Guesses and images
+
+When `aki.win` becomes true, Akinator has a guess. Read
+`aki.name_proposition`, `aki.description_proposition`, and `aki.photo`, then
+call `aki.choose()` to accept it or `aki.exclude()` to keep playing. If
+`aki.no_question` is true, excluding the guess ends the game.
+
+`aki.akinator_image_url` is the current PNG image. It changes as questions
+are answered and returns to the previous image after `aki.back()`. In async
+code, use `await aki.choose()`, `await aki.exclude()`, and `await aki.back()`.
+The state fields are the same in both clients.
 
 ## Language Support
 

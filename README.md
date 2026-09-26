@@ -14,6 +14,8 @@ A Python wrapper library for the Akinator game API. Akinator is the popular web-
 - [Quick Links](#quick-links)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Game state and images](#game-state-and-images)
+- [Async usage](#async-usage)
 - [Cloudflare / challenge solvers](#cloudflare--challenge-solvers-optional)
 - [Contributing](#contributing)
 
@@ -40,44 +42,120 @@ A Python wrapper library for the Akinator game API. Akinator is the popular web-
 
 # Usage
 
-There is both synchronous and asynchronous variants of `akipy` available.
-
-Synchronous: `from akipy import Akinator`
-
-Asynchronous: `from akipy.async_akinator import Akinator`
-
-I'll provide a sample usage for synchronous usage of `Akinator`.
-All the examples are also in the project's examples folder. So please check them out as well.
+This example covers questions, guesses, Back, and a finished game. A context
+manager closes the HTTP client when you leave it.
 
 ```python
 import akipy
 
-aki = akipy.Akinator()
-aki.start_game()
+with akipy.Akinator() as aki:
+    aki.start_game(language="en", game_mode="c", child_mode=False)
 
-while not aki.win:
-    ans = input(str(aki) + "\n\t")
-    if ans == "b":
-        try:
-            aki.back()
-        except akipy.CantGoBackAnyFurther:
-            pass
+    while not aki.finished:
+        if aki.win:
+            print(f"My guess: {aki.name_proposition} ({aki.description_proposition})")
+            print(f"Character photo: {aki.photo}")
+            if input("Is that right? [y/n] ").strip().lower() == "y":
+                aki.choose()
+            else:
+                aki.exclude()
+            continue
+
+        print(f"Question {aki.step}: {aki.question}")
+        print(f"Akinator image: {aki.akinator_image_url}")
+        reply = input("yes/no/idk/probably/probably not/back: ").strip().lower()
+        if reply == "back":
+            try:
+                aki.back()
+            except akipy.CantGoBackAnyFurther:
+                print("Already at the first question.")
+        else:
+            try:
+                aki.answer(reply)
+            except akipy.InvalidChoiceError:
+                print("Please enter one of the listed answers.")
+
+    if aki.child_mode_blocked:
+        print("Akinator's guess was hidden by child mode.")
+    elif aki.soundlike:
+        print("Akinator ran out of questions and guesses.")
+    elif aki.win:
+        print(f"Akinator guessed {aki.name_proposition}.")
     else:
-        try:
-            aki.answer(ans)
-        except akipy.InvalidChoiceError:
-            pass
-
-print(aki)
-print(aki.name_proposition)
-print(aki.description_proposition)
-print(aki.pseudo)
-print(aki.photo)
+        print("Game ended without a correct guess.")
 ```
+
+The five answer choices are `yes`, `no`, `idk`, `probably`, and `probably not`.
+You can also pass their numeric IDs, `0` through `4`. `back` is handled by the
+example; it is not an answer you pass to `aki.answer()`.
+
+Use `game_mode="c"` for characters, `"a"` for animals, or `"o"` for objects.
+Availability depends on the language.
+
+## Game state and images
+
+After `start_game()` and after each action, read these fields from the same
+`Akinator` instance:
+
+| Field | What it tells you |
+|-------|-------------------|
+| `question` | Current question text. |
+| `step` | Current server step. |
+| `progression` / `confidence` | Progress as a server value / a float from 0 to 1. |
+| `akinator_image_url` | URL of the current PNG fallback image. `akitude_url` is an alias. |
+| `win` | Akinator has proposed a character, or you accepted its guess. |
+| `name_proposition`, `description_proposition`, `photo` | Details of the proposed character. Read these when `win` is true. |
+| `no_question` | There are no more questions after the current guess. Rejecting it ends the game. |
+| `child_mode_blocked` | A proposed character was hidden by child mode. |
+| `soundlike` | The game reached its sounds-like ending. |
+| `finished` | The game is over. Check `win`, `child_mode_blocked`, and `soundlike` for the outcome. |
+| `completion` | Last server result, usually `"OK"`. Rejected requests raise an exception. |
+
+The image URL changes as you answer and returns to the previous image when
+you call `back()`. It points to the site's PNG fallback, not a frame from its
+animated Lottie artwork. If an API response omits the scores used to select
+the next image, the last known PNG stays available.
+
+A guess does not finish the game on its own. Call `choose()` to accept it or
+`exclude()` to reject it. If `no_question` is true, `exclude()` ends the game.
+The `yes()` and `no()` helpers also work: on a question they answer yes or no;
+on a guess they accept or reject it.
+
+## Async usage
+
+The async client exposes the same state fields and uses `await` for game
+actions:
+
+```python
+import asyncio
+from akipy.async_akinator import Akinator
+
+async def play():
+    async with Akinator() as aki:
+        await aki.start_game(language="en")
+        while not aki.finished:
+            if aki.win:
+                print(f"Akinator guesses {aki.name_proposition}: {aki.photo}")
+                if input("Correct? [y/n] ").strip().lower() == "y":
+                    await aki.choose()
+                else:
+                    await aki.exclude()
+            else:
+                print(aki.question, aki.akinator_image_url)
+                await aki.answer(input("Your answer: ").strip().lower())
+
+asyncio.run(play())
+```
+
+An expired or out-of-sync session raises `AkinatorServerError` when Akinator
+returns `completion="KO"`. A session timeout raises `TimeoutError`. Start a
+new game in either case. See [Errors](#errors) for Cloudflare and solver errors.
 
 ## Cloudflare / challenge solvers (optional)
 
-If Akinator is behind Cloudflare, pass a solver that speaks the [FlareSolverr v2](https://github.com/FlareSolverr/FlareSolverr) `POST /v1` API:
+Most games work without a solver. akipy sends a browser-style User-Agent on
+normal HTTP requests. If Cloudflare challenges those requests, you can pass a
+solver that speaks the [FlareSolverr v2](https://github.com/FlareSolverr/FlareSolverr) `POST /v1` API:
 
 | Solver | Notes |
 |--------|--------|
@@ -131,6 +209,7 @@ CI integration tests start **FlareSolverr** as a service on the runner (`http://
 |-----------|------|
 | `CloudflareBlockedError` | Challenge detected and no `solver_url` configured |
 | `SolverError` | Solver unreachable or returned a non-ok status (`FlareSolverrError` is an alias) |
+| `AkinatorServerError` | Akinator rejected the game request, often because the session expired or the game state is out of sync |
 
 # Contributing
 

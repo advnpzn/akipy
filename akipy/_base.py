@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from .dicts import THEME_ID, THEMES, LANG_MAP
-from .exceptions import InvalidLanguageError, InvalidThemeError
+from .exceptions import AkinatorServerError, InvalidLanguageError, InvalidThemeError
 from .solver import (
     DEFAULT_SOLVER_TIMEOUT_MS,
     normalize_solver_url,
@@ -21,11 +21,25 @@ from .solver import (
 SESSION_PATTERN = re.compile(r"#session'\).val\('(.+?)'\)")
 SIGNATURE_PATTERN = re.compile(r"#signature'\).val\('(.+?)'\)")
 IDENTIFIANT_PATTERN = re.compile(r"#identifiant'\).val\('(.+?)'\)")
+STORAGE_SESSION_PATTERN = re.compile(r"localStorage\.setItem\('session',\s*'(.+?)'\)")
+STORAGE_IDENTIFIANT_PATTERN = re.compile(
+    r"localStorage\.setItem\('identifiant',\s*'(.+?)'\)"
+)
+STORAGE_STEP_PATTERN = re.compile(r"localStorage\.setItem\('step',\s*'(.+?)'\)")
+STORAGE_PROGRESSION_PATTERN = re.compile(
+    r"localStorage\.setItem\('progression',\s*'(.+?)'\)"
+)
+STORAGE_ANSWER_SCORES_PATTERN = re.compile(
+    r"localStorage\.setItem\('trouvitudesReponses',\s*'([^']+)'\)"
+)
 QUESTION_PATTERN = re.compile(
-    r'<div class="bubble-body"><p class="question-text" id="question-label">(.+)</p></div>'
+    r'<p\b[^>]*\bid="question-label"[^>]*>(.*?)</p>', re.DOTALL
 )
 PROPOSITION_PATTERN = re.compile(
-    r'<div class="sub-bubble-propose"><p id="p-sub-bubble">([\w\s]+)</p></div>'
+    r'<p\b[^>]*\bid="p-sub-bubble"[^>]*>(.*?)</p>', re.DOTALL
+)
+AKITUDE_IMAGE_PATTERN = re.compile(
+    r'<img\b[^>]*\bid="akitude"[^>]*\bsrc="([^"]+)"', re.DOTALL
 )
 WIN_MESSAGE_PATTERN = re.compile(r'<span class="win-sentence">(.+?)<\/span>')
 ALREADY_PLAYED_PATTERN = re.compile(r'let tokenDejaJoue = "([\w\s]+)";')
@@ -33,6 +47,58 @@ TIMES_SELECTED_PATTERN = re.compile(r'let timesSelected = "(\d+)";')
 TIMES_PATTERN = re.compile(r'<span id="timesselected"><\/span>\s+([\w\s]+)<\/span>')
 # Chrome/FlareSolverr JSON viewer wraps payload in <pre>...</pre>
 _PRE_JSON_PATTERN = re.compile(r"<pre[^>]*>(.*?)</pre>", re.DOTALL | re.IGNORECASE)
+
+# The site's non-animated PNG fallback uses these mood transitions. The scores
+# are supplied by /game and each question response, but the image name is not.
+_MOOD_IMAGES = {
+    "confiant:confiant": "mobile",
+    "confiant:serein+": "surprise",
+    "confiant:serein-": "surprise",
+    "confiant:inquiet+": "surprise",
+    "confiant:inquiet-": "surprise",
+    "serein+:serein+": "serein_1",
+    "serein+:serein-": "concentration",
+    "serein-:serein-": "serein_2",
+    "serein-:serein+": "inspiration_legere",
+    "serein+:inquiet+": "surprise",
+    "serein+:inquiet-": "surprise",
+    "serein-:inquiet+": "concentration",
+    "serein-:inquiet-": "surprise",
+    "inquiet+:serein+": "inspiration_forte",
+    "inquiet+:serein-": "concentration",
+    "inquiet-:serein+": "inspiration_forte",
+    "inquiet-:serein-": "inspiration_forte",
+    "inquiet+:inquiet+": "inquiet",
+    "inquiet+:inquiet-": "leger_decouragement",
+    "inquiet-:inquiet+": "concentration_intense",
+    "inquiet-:inquiet-": "decouragement",
+    "serein+:confiant": "inspiration_forte",
+    "serein-:confiant": "inspiration_forte",
+    "inquiet+:confiant": "inspiration_forte",
+    "inquiet-:confiant": "inspiration_forte",
+}
+
+
+def _mood_for_score(score: float, step: int) -> str:
+    if score >= (50 + step * 1.4 if step <= 30 else 92):
+        return "confiant"
+    if score >= (15 + step * 2.3 if step <= 30 else 85):
+        return "serein+"
+    if score >= (-15 + step * 3 if step <= 30 else 75):
+        return "serein-"
+    if score >= (-25 + step * 2.5 if step <= 30 else 50):
+        return "inquiet+"
+    return "inquiet-"
+
+
+def _parse_answer_scores(value: Any) -> list[float] | None:
+    try:
+        scores = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(scores, list) or len(scores) != 5:
+            return None
+        return [float(score) for score in scores]
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_api_json(text: str) -> Any:
@@ -94,10 +160,17 @@ class _BaseAkinator:
         self.question: str | None = None
         self.progression: str | None = None
         self.step: str | None = None
+        self._answer_depth: int | None = None
         self.akitude: str | None = None
+        self._answer_scores: list[float] | None = None
+        self._mood_states: list[str] = ["serein+"]
+        self._akitude_history: list[str] = ["serein_2"]
         self.step_last_proposition: str = ""
         self.finished: bool = False
         self.win: bool = False
+        self.no_question: bool = False
+        self.child_mode_blocked: bool = False
+        self.soundlike: bool = False
         self.id_proposition: str = ""
         self.name_proposition: str = ""
         self.description_proposition: str = ""
@@ -141,15 +214,17 @@ class _BaseAkinator:
 
     def _parse_init_response(self, text: str) -> None:
         """Extract session credentials and first question from the /game HTML response."""
-        session_m = SESSION_PATTERN.search(text)
+        session_m = STORAGE_SESSION_PATTERN.search(text) or SESSION_PATTERN.search(text)
         signature_m = SIGNATURE_PATTERN.search(text)
-        identifiant_m = IDENTIFIANT_PATTERN.search(text)
-        if not (session_m and signature_m and identifiant_m):
+        identifiant_m = STORAGE_IDENTIFIANT_PATTERN.search(
+            text
+        ) or IDENTIFIANT_PATTERN.search(text)
+        if not (session_m and identifiant_m):
             raise ValueError(
-                "Response does not contain expected data: session, signature, or identifiant"
+                "Response does not contain expected data: session or identifiant"
             )
         self.session = session_m.group(1)
-        self.signature = signature_m.group(1)
+        self.signature = signature_m.group(1) if signature_m else None
         self.identifiant = identifiant_m.group(1)
 
         question_m = QUESTION_PATTERN.search(text)
@@ -164,30 +239,52 @@ class _BaseAkinator:
             )
         self.proposition_message = html.unescape(proposition_m.group(1))
 
-        self.progression = "0.00000"
-        self.step = "0"
-        self.akitude = "defi.png"
+        image_m = AKITUDE_IMAGE_PATTERN.search(text)
+        step_m = STORAGE_STEP_PATTERN.search(text)
+        progression_m = STORAGE_PROGRESSION_PATTERN.search(text)
+        self.step = step_m.group(1) if step_m else "0"
+        self._answer_depth = 0
+        self.progression = progression_m.group(1) if progression_m else "0.00000"
+        self.akitude = image_m.group(1).rsplit("/", 1)[-1] if image_m else "defi.png"
+        scores_m = STORAGE_ANSWER_SCORES_PATTERN.search(text)
+        self._answer_scores = (
+            _parse_answer_scores(scores_m.group(1)) if scores_m else None
+        )
+        self._mood_states = ["serein+"]
+        self._akitude_history = [self.akitude.removesuffix(".png")]
+        self.win = False
+        self.finished = False
+        self.no_question = False
+        self.child_mode_blocked = False
+        self.soundlike = False
+        self.step_last_proposition = ""
+        self.completion = "OK"
 
     def _base_data(self) -> dict:
         """Common form fields shared across answer/back/exclude requests."""
-        return {
+        data = {
             "step": self.step,
             "progression": self.progression,
             "sid": self.theme,
             "cm": self._child_mode_str,
             "session": self.session,
-            "signature": self.signature,
         }
+        if self.signature is not None:
+            data["signature"] = self.signature
+        return data
 
     def _update(self, action: str, resp: dict) -> None:
         if action == "answer":
+            self.win = False
+            self.no_question = False
+            self.id_proposition = ""
             self.akitude = resp.get("akitude", self.akitude)
             self.step = resp.get("step", self.step)
             self.progression = resp.get("progression", self.progression)
             self.question = html.unescape(resp.get("question", ""))
         elif action == "win":
             self.win = True
-            self.step_last_proposition = self.step or ""
+            self.step_last_proposition = str(resp.get("step", self.step or ""))
             self.id_proposition = resp.get("id_proposition", "")
             self.name_proposition = html.unescape(resp.get("name_proposition", ""))
             self.description_proposition = html.unescape(
@@ -199,10 +296,62 @@ class _BaseAkinator:
             self.progression = resp.get("progression", self.progression)
             self.step = resp.get("step", self.step)
             self.akitude = resp.get("akitude", self.akitude)
+            self.no_question = str(resp.get("no_question", "0")) == "1"
+            self.child_mode_blocked = str(resp.get("valide_contrainte", "1")) == "0"
+            if self.child_mode_blocked:
+                self.win = False
+                self.finished = True
+                self.id_proposition = ""
+                self.name_proposition = ""
+                self.description_proposition = ""
+                self.pseudo = None
+                self.photo = None
+                self.flag_photo = None
         else:
             raise NotImplementedError(f"Unable to handle action: {action}")
 
-    def handle_response(self, resp: httpx.Response) -> None:
+    def _advance_akitude(self, answer_index: int) -> None:
+        if self._answer_scores is None:
+            return
+        score = self._answer_scores[answer_index]
+        previous = self._mood_states[-1]
+        target = _mood_for_score(score, int(self.step or 0))
+        image = _MOOD_IMAGES.get(f"{previous}:{target}", "serein_2")
+        if (
+            score - float(self.progression or 0) >= 10
+            and previous == target == "inquiet-"
+        ):
+            image = "inquiet"
+        if image == self._akitude_history[-1]:
+            if image == "serein_1":
+                image = "serein_2"
+            elif image == "serein_2":
+                image = "serein_1"
+        self._mood_states.append(target)
+        self._akitude_history.append(image)
+        self.akitude = f"{image}.png"
+
+    def _show_proposal_akitude(self) -> None:
+        self.akitude = (
+            "espoir_anxieux.png"
+            if self._mood_states[-1].startswith("inquiet")
+            else "confiant.png"
+        )
+
+    def _restore_akitude(self) -> None:
+        if len(self._mood_states) > 1:
+            self._mood_states.pop()
+        if len(self._akitude_history) > 1:
+            self._akitude_history.pop()
+        self.akitude = f"{self._akitude_history[-1]}.png"
+
+    def handle_response(
+        self,
+        resp: httpx.Response,
+        *,
+        answer_index: int | None = None,
+        going_back: bool = False,
+    ) -> None:
         """Parse an API response and update game state. Used by both sync and async paths."""
         resp.raise_for_status()
         raw_text = getattr(resp, "text", "")
@@ -242,19 +391,56 @@ class _BaseAkinator:
             )
 
         if "completion" not in data:
+            if "question" not in data and "id_proposition" not in data:
+                raise AkinatorServerError("Akinator returned no game result")
             data["completion"] = self.completion
         if data["completion"] == "KO - TIMEOUT":
             raise TimeoutError("The session has timed out.")
+        if data["completion"] == "KO":
+            raise AkinatorServerError(
+                "Akinator rejected the game request (session expired or game state out of sync)"
+            )
+        if going_back:
+            self._restore_akitude()
+        elif "id_proposition" in data:
+            self._show_proposal_akitude()
+        elif answer_index is not None:
+            self._advance_akitude(answer_index)
+        if "trouvitudesReponses" in data:
+            self._answer_scores = _parse_answer_scores(data["trouvitudesReponses"])
+        elif answer_index is not None or going_back:
+            self._answer_scores = None
         if data["completion"] == "SOUNDLIKE":
             self.finished = True
-            self.win = True
-            if not self.id_proposition:
-                self.defeat()
+            self.win = False
+            self.soundlike = True
         elif "id_proposition" in data:
             self._update(action="win", resp=data)
         else:
             self._update(action="answer", resp=data)
         self.completion = data["completion"]
+
+    def handle_soundlike_transition(self, resp: httpx.Response) -> None:
+        """Handle the terminal /exclude response when no questions remain."""
+        resp.raise_for_status()
+        try:
+            data = parse_api_json(resp.text)
+        except ValueError as e:
+            raise AkinatorServerError(
+                "Akinator returned an invalid terminal response"
+            ) from e
+        if (
+            not isinstance(data, dict)
+            or data.get("completion") == "KO"
+            or "step" not in data
+        ):
+            raise AkinatorServerError("Akinator rejected the terminal game request")
+        self.step = data["step"]
+        self.win = False
+        self.finished = True
+        self.soundlike = True
+        self.id_proposition = ""
+        self.completion = "SOUNDLIKE"
 
     def defeat(self):
         self.finished = True
@@ -275,6 +461,11 @@ class _BaseAkinator:
     @property
     def akitude_url(self) -> str:
         return f"{self.uri}/assets/img/akitudes_670x1096/{self.akitude}"
+
+    @property
+    def akinator_image_url(self) -> str:
+        """URL of the current non-animated PNG fallback image for Akinator."""
+        return self.akitude_url
 
     def __str__(self) -> str:
         if self.win and not self.finished:

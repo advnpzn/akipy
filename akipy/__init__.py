@@ -8,6 +8,7 @@ akipy - A Python wrapper library for Akinator
 from .akinator import Akinator as Akinator
 from . import async_akinator as async_akinator
 from .exceptions import (
+    AkinatorServerError,
     CantGoBackAnyFurther,
     CloudflareBlockedError,
     FlareSolverrError,
@@ -19,6 +20,7 @@ from .exceptions import (
 __all__ = [
     "Akinator",
     "async_akinator",
+    "AkinatorServerError",
     "CantGoBackAnyFurther",
     "CloudflareBlockedError",
     "FlareSolverrError",

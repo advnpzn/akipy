@@ -155,7 +155,8 @@ class Akinator(_BaseAkinator):
                 "Only 'yes' or 'no' can be answered when Akinator has proposed a win"
             )
         data = self._base_data()
-        data["answer"] = get_answer_id(option)
+        answer_index = get_answer_id(option)
+        data["answer"] = answer_index
         data["step_last_proposition"] = self.step_last_proposition
         resp = request_handler(
             url=f"{self.uri}/answer",
@@ -165,13 +166,16 @@ class Akinator(_BaseAkinator):
             solver_url=self.solver_url,
             solver_timeout=self.solver_timeout,
         )
-        self.handle_response(resp)
+        self.handle_response(resp, answer_index=answer_index)
+        if self._answer_depth is not None:
+            self._answer_depth += 1
         return self
 
     def back(self):
-        if int(self.step) <= 0:
+        if (self._answer_depth == 0) or (
+            self._answer_depth is None and int(self.step) <= 0
+        ):
             raise CantGoBackAnyFurther("You are already at the first question")
-        self.win = False
         resp = request_handler(
             url=f"{self.uri}/cancel_answer",
             method="POST",
@@ -180,7 +184,11 @@ class Akinator(_BaseAkinator):
             solver_url=self.solver_url,
             solver_timeout=self.solver_timeout,
         )
-        self.handle_response(resp)
+        self.handle_response(resp, going_back=True)
+        self.win = False
+        self.no_question = False
+        if self._answer_depth is not None:
+            self._answer_depth -= 1
         return self
 
     def exclude(self):
@@ -191,31 +199,19 @@ class Akinator(_BaseAkinator):
         if self.finished:
             return self.defeat()
         data = self._base_data()
-        data["forward_answer"] = "0"
-        self.win = False
-        self.id_proposition = ""
-        try:
-            resp = request_handler(
-                url=f"{self.uri}/exclude",
-                method="POST",
-                data=data,
-                client=self.client,
-                solver_url=self.solver_url,
-                solver_timeout=self.solver_timeout,
-            )
+        data["forward_answer"] = "0" if self.no_question else "1"
+        resp = request_handler(
+            url=f"{self.uri}/exclude",
+            method="POST",
+            data=data,
+            client=self.client,
+            solver_url=self.solver_url,
+            solver_timeout=self.solver_timeout,
+        )
+        if self.no_question:
+            self.handle_soundlike_transition(resp)
+        else:
             self.handle_response(resp)
-        except RuntimeError as e:
-            error_msg = str(e)
-            if any(
-                msg in error_msg
-                for msg in [
-                    "HTML instead of JSON",
-                    "Failed to parse JSON",
-                    "No more characters available",
-                ]
-            ):
-                return self.defeat()
-            raise
         return self
 
     def choose(self):
@@ -227,13 +223,14 @@ class Akinator(_BaseAkinator):
             "step": self.step,
             "sid": self.theme,
             "session": self.session,
-            "signature": self.signature,
             "identifiant": self.identifiant,
             "pid": self.id_proposition,
             "charac_name": self.name_proposition,
             "charac_desc": self.description_proposition,
             "pflag_photo": self.flag_photo,
         }
+        if self.signature is not None:
+            data["signature"] = self.signature
         resp = request_handler(
             url=f"{self.uri}/choice",
             method="POST",
